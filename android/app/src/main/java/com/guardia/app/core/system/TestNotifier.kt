@@ -40,7 +40,7 @@ object TestNotifier {
     private fun post(context: Context, id: Int, title: String, text: String) {
         ensureChannel(context)
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setSmallIcon(R.drawable.ic_stat_guardia)
             .setContentTitle(title)
             .setContentText(text)
             .setPriority(NotificationCompat.PRIORITY_HIGH)

@@ -42,11 +42,26 @@ class SmsReceiver : BroadcastReceiver() {
                 if (!prefs.findMyPhoneEnabled.first()) return@launch
                 val keyword = prefs.findKeyword.first().trim()
                 if (keyword.isEmpty() || !body.equals(keyword, ignoreCase = true)) return@launch
+                // With "trusted number only" on (the default), a leaked keyword alone can't be used
+                // by a stranger to lock/locate the device: the text must come from the trusted number.
+                if (prefs.findTrustedOnly.first()) {
+                    val trusted = prefs.trustedNumber.first().trim()
+                    if (trusted.isEmpty() || !numbersMatch(sender, trusted)) return@launch
+                }
                 handleLocate(context, sender)
             } finally {
                 pending.finish()
             }
         }
+    }
+
+    /** Loose phone-number equality that survives formatting/country-prefix differences. */
+    private fun numbersMatch(a: String, b: String): Boolean {
+        val da = a.filter(Char::isDigit)
+        val db = b.filter(Char::isDigit)
+        if (da.isEmpty() || db.isEmpty()) return false
+        val tail = minOf(da.length, db.length, 9)
+        return da.takeLast(tail) == db.takeLast(tail)
     }
 
     private suspend fun handleLocate(context: Context, sender: String) {

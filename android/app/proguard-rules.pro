@@ -1,21 +1,37 @@
-# Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.
+# Guardia R8 / ProGuard rules.
 #
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
+# Most AndroidX/Hilt/Room/ML Kit artifacts ship their own consumer rules, so we only add keeps for
+# libraries that rely on reflection or JNI and would otherwise be stripped/renamed.
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# Keep crash-stack line numbers readable (the app has an opt-in local crash log).
+-keepattributes SourceFile,LineNumberTable
+-keepattributes *Annotation*,Signature,InnerClasses,EnclosingMethod
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# --- JavaMail (com.sun.mail) + javax.activation ---
+# Uses reflection over provider classes and META-INF service descriptors.
+-keep class com.sun.mail.** { *; }
+-keep class javax.mail.** { *; }
+-keep class javax.activation.** { *; }
+-keep class mymail.** { *; }
+-dontwarn com.sun.mail.**
+-dontwarn javax.mail.**
+-dontwarn javax.activation.**
+-dontwarn java.awt.**
+-dontwarn javax.security.**
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# --- Picovoice Porcupine (voice safeword) ---
+# JNI bindings resolve native methods by class/method name.
+-keep class ai.picovoice.** { *; }
+-dontwarn ai.picovoice.**
+
+# --- LiteRT / TensorFlow Lite (on-device face embedder) ---
+-keep class org.tensorflow.lite.** { *; }
+-keep class com.google.ai.edge.litert.** { *; }
+-dontwarn org.tensorflow.lite.**
+-dontwarn com.google.ai.edge.litert.**
+
+# --- Google Play Billing ---
+-keep class com.android.billingclient.api.** { *; }
+
+# --- Kotlin coroutines internals occasionally referenced reflectively ---
+-dontwarn kotlinx.coroutines.**

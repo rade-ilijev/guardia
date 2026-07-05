@@ -238,7 +238,7 @@ private fun WelcomeStep(onShowLegal: (Int) -> Unit = {}) {
         Spacer(Modifier.height(Spacing.xl))
         FeatureLine(Icons.Filled.CameraAlt, "Face recognition", "Continuously verifies it's really you.")
         FeatureLine(Icons.Filled.Lock, "Auto-lock intruders", "Locks instantly and snaps a photo.")
-        FeatureLine(Icons.Filled.VisibilityOff, "Private by design", "All biometrics stay encrypted on-device.")
+        FeatureLine(Icons.Filled.VisibilityOff, "Private by design", "Your face stays on this device and is never uploaded.")
         Spacer(Modifier.height(Spacing.lg))
         Text(
             "By continuing, you agree to our",

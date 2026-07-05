@@ -99,6 +99,10 @@ class GuardService : LifecycleService() {
         com.guardia.app.core.location.ZonePolicy(true, true, 2, 0, false, "", false, false, "", false)
     /** Effective lock-on-no-face after resolving location/default/custom; refreshed by [applyAll]. */
     @Volatile private var resolvedLockOnNoFace = false
+    /** True once we are foreground; guards re-promotion when the location FGS type changes. */
+    @Volatile private var isForeground = false
+    /** Whether the current foreground type already includes the location subtype. */
+    @Volatile private var fgsHasLocation = false
 
     /** Reacts to lock/unlock so the premium unlock ramp can re-arm each session. */
     private val screenReceiver = object : android.content.BroadcastReceiver() {
@@ -212,6 +216,11 @@ class GuardService : LifecycleService() {
 
         // Manage location sampling lifecycle.
         if (locActive) locationZoneManager.start() else locationZoneManager.stop()
+
+        // If location mode just turned on/off, re-promote so the foreground service type matches
+        // what we're actually doing (accessing location from an FGS requires the location subtype).
+        val wantLocation = locActive && hasLocationPermission()
+        if (isForeground && wantLocation != fgsHasLocation) startAsForeground()
     }
 
     private fun parseRamp(value: String): List<Int> =
@@ -219,7 +228,15 @@ class GuardService : LifecycleService() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
-        startAsForeground()
+        // startForeground can throw ForegroundServiceStartNotAllowedException when the OS launched
+        // us from a restricted context (e.g. BOOT_COMPLETED on Android 12+). If we can't legally
+        // become a foreground service right now, stop cleanly instead of crashing; the next unlock
+        // (or the user opening the app) will re-arm guarding.
+        if (!startAsForeground()) {
+            GuardController.onServiceState(GuardState.STOPPED)
+            stopSelf()
+            return START_NOT_STICKY
+        }
         rulesEngine.reset()
         captureGate.start()
         if (hasCameraPermission()) startCaptureScheduler()
@@ -242,6 +259,7 @@ class GuardService : LifecycleService() {
             VoiceController.stop(this)
             voiceArmed = false
         }
+        isForeground = false
         GuardController.onServiceState(GuardState.STOPPED)
         super.onDestroy()
     }
@@ -505,22 +523,46 @@ class GuardService : LifecycleService() {
     private fun hasCameraPermission(): Boolean =
         ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
 
-    private fun startAsForeground() {
+    /**
+     * Promotes this service to the foreground. Returns false (instead of crashing) when the OS
+     * refuses the start — e.g. camera-typed FGS launched from a restricted background context on
+     * Android 12+. We try the richest legal type first and fall back to a plain start.
+     */
+    private fun startAsForeground(): Boolean {
         val notification = buildNotification()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            val type = if (hasCameraPermission()) {
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA
-            } else {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
-                    ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
-                else 0
-            }
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            return runCatching { startForeground(NOTIFICATION_ID, notification) }.isSuccess
+        }
+        // Only declare the types we can currently back: camera needs the permission granted, and
+        // location is added when the (premium) location mode is active with permission — otherwise
+        // requesting a type we can't service is itself an error on newer Android.
+        var type = 0
+        if (hasCameraPermission()) type = type or ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA
+        if (locationActive() && hasLocationPermission()) {
+            type = type or ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
+        }
+        if (type == 0 && Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            type = ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+        }
+        val hasLocationType = type and ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION != 0
+        val typed = runCatching {
             if (type != 0) startForeground(NOTIFICATION_ID, notification, type)
             else startForeground(NOTIFICATION_ID, notification)
-        } else {
-            startForeground(NOTIFICATION_ID, notification)
         }
+        if (typed.isSuccess) {
+            isForeground = true
+            fgsHasLocation = hasLocationType
+            return true
+        }
+        // Last resort: an untyped foreground start (still better than dying).
+        val plain = runCatching { startForeground(NOTIFICATION_ID, notification) }.isSuccess
+        if (plain) { isForeground = true; fgsHasLocation = false }
+        return plain
     }
+
+    private fun hasLocationPermission(): Boolean =
+        ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
+            ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
 
     private fun buildNotification(): Notification {
         val contentIntent = android.app.PendingIntent.getActivity(
@@ -532,7 +574,7 @@ class GuardService : LifecycleService() {
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(getString(R.string.app_name))
             .setContentText(getString(R.string.guard_notif_protected))
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setSmallIcon(R.drawable.ic_stat_guardia)
             .setOngoing(true)
             .setContentIntent(contentIntent)
             .setPriority(NotificationCompat.PRIORITY_LOW)

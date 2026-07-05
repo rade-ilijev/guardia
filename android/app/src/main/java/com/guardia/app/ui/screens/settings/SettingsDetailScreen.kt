@@ -901,7 +901,7 @@ private fun PrivacySection(viewModel: SettingsViewModel) {
     var legalDoc by remember { mutableStateOf<Int?>(null) }
 
     InfoBanner(
-        "Guardia is built to be open: face data, embeddings, and intruder photos are encrypted and stay on-device — never uploaded. You control every permission and can erase everything anytime.",
+        "Guardia is built to be private: your face data and embeddings stay in this app's private storage and are never uploaded, and intruder photos and saved credentials are encrypted at rest. You control every permission and can erase everything anytime.",
         Icons.Filled.Info,
         tone = BannerTone.Success,
     )
@@ -1623,6 +1623,7 @@ private fun AlertsSection(onUpgrade: () -> Unit = {}, viewModel: AlertsViewModel
     val trustedNumber by viewModel.trustedNumber.collectAsStateWithLifecycle()
     val findEnabled by viewModel.findEnabled.collectAsStateWithLifecycle()
     val findKeyword by viewModel.findKeyword.collectAsStateWithLifecycle()
+    val findTrustedOnly by viewModel.findTrustedOnly.collectAsStateWithLifecycle()
 
     val smsPerms = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {}
     val locPerms = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {}
@@ -1676,7 +1677,7 @@ private fun AlertsSection(onUpgrade: () -> Unit = {}, viewModel: AlertsViewModel
                 }
                 viewModel.setFindEnabled(on)
             },
-            subtitle = "Text the keyword from any phone to lock and get the location.",
+            subtitle = "Text the secret keyword to this phone to lock it and get its location.",
         )
     }
     if (findEnabled) {
@@ -1685,6 +1686,13 @@ private fun AlertsSection(onUpgrade: () -> Unit = {}, viewModel: AlertsViewModel
                 FormField("Secret keyword", findKeyword, viewModel::setFindKeyword)
             }
         }
+        SwitchRow(
+            "Trusted number only", findTrustedOnly, viewModel::setFindTrustedOnly,
+            subtitle = if (findTrustedOnly && trustedNumber.isBlank())
+                "Set a trusted phone number above — locate requests are ignored until one is set."
+            else
+                "Only react to the keyword when it's sent from your trusted number. Turning this off lets any phone that knows the keyword locate this device.",
+        )
     }
 
     Button(

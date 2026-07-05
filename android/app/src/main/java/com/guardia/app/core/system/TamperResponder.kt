@@ -58,7 +58,7 @@ class TamperResponder @Inject constructor(
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setContentTitle("Guardia protection changed")
             .setContentText(reason)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setSmallIcon(R.drawable.ic_stat_guardia)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_ERROR)
             .setAutoCancel(true)

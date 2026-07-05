@@ -38,6 +38,7 @@ class AlertsViewModel @Inject constructor(
     val trustedNumber = flow(prefs.trustedNumber, "")
     val findEnabled = flow(prefs.findMyPhoneEnabled, false)
     val findKeyword = flow(prefs.findKeyword, "GUARDIA LOCATE")
+    val findTrustedOnly = flow(prefs.findTrustedOnly, true)
 
     fun setEmailEnabled(v: Boolean) = viewModelScope.launch { prefs.setEmailAlertsEnabled(v) }
     fun setSmtpHost(v: String) = viewModelScope.launch { prefs.setSmtpHost(v) }
@@ -52,6 +53,7 @@ class AlertsViewModel @Inject constructor(
         SensitiveComponents.setSmsReceiverEnabled(context, v)
     }
     fun setFindKeyword(v: String) = viewModelScope.launch { prefs.setFindKeyword(v) }
+    fun setFindTrustedOnly(v: Boolean) = viewModelScope.launch { prefs.setFindTrustedOnly(v) }
 
     fun sendTest(onResult: (Boolean, String) -> Unit) {
         viewModelScope.launch {

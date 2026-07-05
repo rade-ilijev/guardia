@@ -49,7 +49,15 @@ class IntruderCaptureService : LifecycleService() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
         val source = intent?.getStringExtra(EXTRA_SOURCE) ?: "Wrong unlock"
-        startAsForeground()
+        // Best-effort: if the OS refuses the foreground start (restricted context on newer Android),
+        // log the attempt and bail rather than crashing the process.
+        if (!startAsForeground()) {
+            lifecycleScope.launch {
+                runCatching { events.log(GuardEvent.Type.WRONG_UNLOCK, "$source - capture unavailable") }
+                stopSelf()
+            }
+            return START_NOT_STICKY
+        }
         if (hasCameraPermission()) {
             startCapture(source)
             lifecycleScope.launch {
@@ -118,7 +126,8 @@ class IntruderCaptureService : LifecycleService() {
     private fun hasCameraPermission(): Boolean =
         ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
 
-    private fun startAsForeground() {
+    /** Returns false instead of throwing if the OS refuses the foreground start. */
+    private fun startAsForeground(): Boolean {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(CHANNEL_ID, "Intruder capture", NotificationManager.IMPORTANCE_MIN)
             getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
@@ -126,14 +135,18 @@ class IntruderCaptureService : LifecycleService() {
         val notification: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(getString(R.string.app_name))
             .setContentText("Security check")
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setSmallIcon(R.drawable.ic_stat_guardia)
             .setPriority(NotificationCompat.PRIORITY_MIN)
             .build()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && hasCameraPermission()) {
-            startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA)
-        } else {
-            startForeground(NOTIFICATION_ID, notification)
+        val typed = runCatching {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && hasCameraPermission()) {
+                startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA)
+            } else {
+                startForeground(NOTIFICATION_ID, notification)
+            }
         }
+        if (typed.isSuccess) return true
+        return runCatching { startForeground(NOTIFICATION_ID, notification) }.isSuccess
     }
 
     companion object {

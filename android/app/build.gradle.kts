@@ -30,11 +30,6 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        // Feature flags (full feature set by default). Product flavors (full/play)
-        // are reintroduced in Phase 4 for the policy-safe Play build.
-        buildConfigField("boolean", "FEATURE_DECOY", "true")
-        buildConfigField("boolean", "FEATURE_PANIC_WIPE", "true")
-        buildConfigField("boolean", "FEATURE_HIDDEN_ICON", "true")
         // Picovoice AccessKey (set picovoice.accessKey in local.properties). Empty disables voice.
         buildConfigField("String", "PICOVOICE_ACCESS_KEY", "\"${localProps.getProperty("picovoice.accessKey", "")}\"")
     }
@@ -53,7 +48,10 @@ android {
         release {
             signingConfig = signingConfigs.getByName("release")
             isDebuggable = false
-            isMinifyEnabled = false
+            // R8 code shrink + obfuscation (a security app shouldn't ship trivially decompilable),
+            // plus unused-resource stripping. Keep rules live in proguard-rules.pro.
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

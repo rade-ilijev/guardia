@@ -69,6 +69,15 @@
             android:taskAffinity=""
             android:theme="@style/Theme.Guardia" />
 
+        <!-- PIN gate for stopping guarding from the Quick Settings tile -->
+        <activity
+            android:name=".core.guard.StopGuardActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTask"
+            android:taskAffinity=""
+            android:theme="@style/Theme.Guardia" />
+
         <!-- Face check overlay shown over a guarded (trigger) app on open -->
         <activity
             android:name=".core.appcheck.FaceCheckActivity"
@@ -154,7 +163,7 @@
         <service
             android:name=".core.system.GuardTileService"
             android:exported="true"
-            android:icon="@drawable/ic_launcher_foreground"
+            android:icon="@drawable/ic_stat_guardia"
             android:label="@string/tile_label"
             android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
             <intent-filter>

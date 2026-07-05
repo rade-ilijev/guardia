@@ -127,6 +127,20 @@ class AppPreferences @Inject constructor(
     val trustedNumber: Flow<String> = ds.data.map { it[KEY_TRUSTED_NUMBER] ?: "" }
     val findMyPhoneEnabled: Flow<Boolean> = ds.data.map { it[KEY_FIND_ENABLED] ?: false }
     val findKeyword: Flow<String> = ds.data.map { it[KEY_FIND_KEYWORD] ?: "GUARDIA LOCATE" }
+    /**
+     * When true (default), find-my-phone only reacts to the trusted number, so a leaked keyword
+     * alone can't be used by a stranger to locate the device.
+     */
+    val findTrustedOnly: Flow<Boolean> = ds.data.map { it[KEY_FIND_TRUSTED_ONLY] ?: true }
+
+    /** Last-known premium entitlement so paying users keep features while offline. */
+    val premiumCached: Flow<Boolean> = ds.data.map { it[KEY_PREMIUM_CACHED] ?: false }
+    /** Whether the prominent background-camera disclosure was accepted (required before guarding). */
+    val guardDisclosureAccepted: Flow<Boolean> = ds.data.map { it[KEY_GUARD_DISCLOSURE] ?: false }
+    /** Failed device unlocks before an intruder selfie is captured (1 = every failure). */
+    val wrongUnlockThreshold: Flow<Int> = ds.data.map { it[KEY_WRONG_UNLOCK_THRESHOLD] ?: 1 }
+    /** Opt-in local crash log (written to app-private storage only, never uploaded). */
+    val crashLogEnabled: Flow<Boolean> = ds.data.map { it[KEY_CRASH_LOG] ?: false }
 
     suspend fun setOnboarded(value: Boolean) = ds.edit { it[KEY_ONBOARDED] = value }
     suspend fun setGuardingEnabled(value: Boolean) = ds.edit { it[KEY_GUARDING_ENABLED] = value }
@@ -175,6 +189,25 @@ class AppPreferences @Inject constructor(
     suspend fun setTrustedNumber(value: String) = ds.edit { it[KEY_TRUSTED_NUMBER] = value }
     suspend fun setFindMyPhoneEnabled(value: Boolean) = ds.edit { it[KEY_FIND_ENABLED] = value }
     suspend fun setFindKeyword(value: String) = ds.edit { it[KEY_FIND_KEYWORD] = value }
+    suspend fun setFindTrustedOnly(value: Boolean) = ds.edit { it[KEY_FIND_TRUSTED_ONLY] = value }
+
+    suspend fun setPremiumCached(value: Boolean) = ds.edit { it[KEY_PREMIUM_CACHED] = value }
+    suspend fun setGuardDisclosureAccepted(value: Boolean) = ds.edit { it[KEY_GUARD_DISCLOSURE] = value }
+    suspend fun setWrongUnlockThreshold(value: Int) = ds.edit { it[KEY_WRONG_UNLOCK_THRESHOLD] = value }
+    suspend fun setCrashLogEnabled(value: Boolean) = ds.edit { it[KEY_CRASH_LOG] = value }
+
+    /** Counts a failed device unlock; returns the new consecutive-failure count. */
+    suspend fun recordWrongUnlock(): Int {
+        var count = 0
+        ds.edit { prefs ->
+            count = (prefs[KEY_WRONG_UNLOCK_COUNT] ?: 0) + 1
+            prefs[KEY_WRONG_UNLOCK_COUNT] = count
+        }
+        return count
+    }
+
+    /** Clears the failed-unlock streak after a successful device unlock. */
+    suspend fun resetWrongUnlocks() = ds.edit { it.remove(KEY_WRONG_UNLOCK_COUNT) }
 
     /** Persist all three PINs (real required; decoy/panic optional). */
     suspend fun setPins(real: String, decoy: String?, panic: String?) {
@@ -274,6 +307,12 @@ class AppPreferences @Inject constructor(
         private val KEY_TRUSTED_NUMBER = stringPreferencesKey("trusted_number")
         private val KEY_FIND_ENABLED = booleanPreferencesKey("find_enabled")
         private val KEY_FIND_KEYWORD = stringPreferencesKey("find_keyword")
+        private val KEY_FIND_TRUSTED_ONLY = booleanPreferencesKey("find_trusted_only")
+        private val KEY_PREMIUM_CACHED = booleanPreferencesKey("premium_cached")
+        private val KEY_GUARD_DISCLOSURE = booleanPreferencesKey("guard_disclosure_accepted")
+        private val KEY_WRONG_UNLOCK_THRESHOLD = intPreferencesKey("wrong_unlock_threshold")
+        private val KEY_WRONG_UNLOCK_COUNT = intPreferencesKey("wrong_unlock_count")
+        private val KEY_CRASH_LOG = booleanPreferencesKey("crash_log_enabled")
         private val KEY_PIN_SALT = stringPreferencesKey("pin_salt")
         private val KEY_PIN_REAL = stringPreferencesKey("pin_real")
         private val KEY_PIN_DECOY = stringPreferencesKey("pin_decoy")

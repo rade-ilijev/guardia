@@ -146,6 +146,9 @@ interface IntruderDao {
     @Query("SELECT * FROM intruder_captures WHERE id = :id LIMIT 1")
     suspend fun byId(id: String): IntruderCaptureEntity?
 
+    @Query("SELECT * FROM intruder_captures")
+    suspend fun all(): List<IntruderCaptureEntity>
+
     @Query("DELETE FROM intruder_captures WHERE id = :id")
     suspend fun delete(id: String)
 

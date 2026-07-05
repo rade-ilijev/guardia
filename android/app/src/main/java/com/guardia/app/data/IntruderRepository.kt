@@ -40,5 +40,9 @@ class IntruderRepository @Inject constructor(
         dao.delete(id)
     }
 
-    suspend fun clear() = dao.clear()
+    /** Deletes every capture, removing the encrypted files from disk before clearing the rows. */
+    suspend fun clear() {
+        dao.all().forEach { crypto.delete(it.photoPath) }
+        dao.clear()
+    }
 }

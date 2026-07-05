@@ -2,6 +2,7 @@ package com.guardia.app.di
 
 import android.content.Context
 import androidx.room.Room
+import com.guardia.app.BuildConfig
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.guardia.app.data.db.EventDao
@@ -100,7 +101,12 @@ object DatabaseModule {
     fun provideDatabase(@ApplicationContext context: Context): GuardiaDatabase =
         Room.databaseBuilder(context, GuardiaDatabase::class.java, "guardia.db")
             .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
-            .fallbackToDestructiveMigration()
+            .apply {
+                // In release we never silently wipe the user's enrolled faces and evidence on a
+                // schema mismatch — every version bump must ship an explicit migration above.
+                // Debug keeps destructive fallback so throwaway schema experiments don't crash.
+                if (BuildConfig.DEBUG) fallbackToDestructiveMigration()
+            }
             .build()
 
     @Provides

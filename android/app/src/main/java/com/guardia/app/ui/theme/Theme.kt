@@ -63,8 +63,8 @@ private val LightColors = lightColorScheme(
     outlineVariant = LightOutlineVariant,
 )
 
-/** Brand gradient used on hero surfaces. */
-val GuardiaHeroGradient = Brush.linearGradient(listOf(Color(0xFF18E6C8), Color(0xFF0E8FA6)))
+/** Brand gradient used on hero surfaces — electric teal easing into a deep cyan-blue. */
+val GuardiaHeroGradient = Brush.linearGradient(listOf(Color(0xFF2BF5D6), Color(0xFF12A6C4), Color(0xFF0C6FA8)))
 val GuardiaAlertGradient = Brush.linearGradient(listOf(Color(0xFFFF6A5E), Color(0xFFC23021)))
 
 /** Subtle glassy panel gradient for cards/console surfaces (dark theme). */

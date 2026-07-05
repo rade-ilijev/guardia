@@ -138,7 +138,8 @@ fun StatTile(
             // Value and optional caption share one baseline so a caption doesn't add height
             // (keeps side-by-side tiles the same height).
             Row(verticalAlignment = Alignment.Bottom) {
-                Text(value, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                // Mono data display so numbers read like instrumentation and align consistently.
+                Text(value, style = com.guardia.app.ui.theme.DataDisplay, color = MaterialTheme.colorScheme.onSurface)
                 if (caption != null) {
                     Spacer(Modifier.width(Spacing.sm))
                     Text(
@@ -147,11 +148,16 @@ fun StatTile(
                         color = tint,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
-                        modifier = Modifier.padding(bottom = 3.dp),
+                        modifier = Modifier.padding(bottom = 4.dp),
                     )
                 }
             }
-            Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(2.dp))
+            Text(
+                label.uppercase(),
+                style = com.guardia.app.ui.theme.OverlineStyle,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }

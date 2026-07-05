@@ -66,6 +66,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -552,27 +553,51 @@ private fun HeroStatusCard(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.height(Spacing.lg))
-        Button(
+        GuardPrimaryAction(protectedNow = protectedNow, accent = animColor, onToggle = onToggle)
+    }
+}
+
+/**
+ * The dashboard's single most important control. When off, a glowing gradient pill ("Start
+ * guarding") that clearly invites action; when on, a restrained outlined "Stop guarding" so turning
+ * protection off never looks like the primary thing to do.
+ */
+@Composable
+private fun GuardPrimaryAction(protectedNow: Boolean, accent: Color, onToggle: () -> Unit) {
+    val shape = RoundedCornerShape(30.dp)
+    if (protectedNow) {
+        OutlinedButton(
             onClick = onToggle,
-            modifier = Modifier.fillMaxWidth().height(56.dp),
-            shape = RoundedCornerShape(28.dp),
-            colors = if (protectedNow)
-                ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.errorContainer,
-                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                )
-            else ButtonDefaults.buttonColors(),
+            modifier = Modifier.fillMaxWidth().height(58.dp),
+            shape = shape,
+            border = androidx.compose.foundation.BorderStroke(1.5.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.6f)),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
         ) {
-            Icon(
-                if (protectedNow) Icons.Filled.PauseCircle else Icons.Filled.PlayCircle,
-                contentDescription = null,
-            )
+            Icon(Icons.Filled.PauseCircle, contentDescription = null)
             Spacer(Modifier.width(Spacing.sm))
-            Text(
-                if (protectedNow) "Stop guarding" else "Start guarding",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-            )
+            Text("Stop guarding", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        }
+    } else {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(58.dp)
+                .shadow(18.dp, shape, clip = false, ambientColor = accent, spotColor = accent)
+                .clip(shape)
+                .background(com.guardia.app.ui.theme.GuardiaHeroGradient)
+                .clickable(onClick = onToggle),
+            contentAlignment = Alignment.Center,
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Filled.Shield, contentDescription = null, tint = Color.White)
+                Spacer(Modifier.width(Spacing.sm))
+                Text(
+                    "Start guarding",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                )
+            }
         }
     }
 }
@@ -638,9 +663,8 @@ private fun StatusChip(label: String, color: Color, live: Boolean = false) {
         }
         Text(
             label,
-            style = MaterialTheme.typography.labelLarge,
+            style = com.guardia.app.ui.theme.StatusReadout,
             color = color,
-            fontWeight = FontWeight.Bold,
         )
     }
 }

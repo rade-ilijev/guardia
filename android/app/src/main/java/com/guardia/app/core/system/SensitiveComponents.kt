@@ -13,15 +13,20 @@ import com.guardia.app.core.alerts.SmsReceiver
 object SensitiveComponents {
 
     fun setSmsReceiverEnabled(context: Context, enabled: Boolean) {
+        // The Play build strips SmsReceiver from the manifest entirely; toggling a component that
+        // isn't declared throws, so this is a no-op there.
+        if (com.guardia.app.BuildConfig.PLAY_BUILD) return
         val state = if (enabled) {
             PackageManager.COMPONENT_ENABLED_STATE_ENABLED
         } else {
             PackageManager.COMPONENT_ENABLED_STATE_DISABLED
         }
-        context.packageManager.setComponentEnabledSetting(
-            ComponentName(context, SmsReceiver::class.java),
-            state,
-            PackageManager.DONT_KILL_APP,
-        )
+        runCatching {
+            context.packageManager.setComponentEnabledSetting(
+                ComponentName(context, SmsReceiver::class.java),
+                state,
+                PackageManager.DONT_KILL_APP,
+            )
+        }
     }
 }

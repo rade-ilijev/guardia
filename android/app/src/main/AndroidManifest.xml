@@ -159,6 +159,17 @@
             </intent-filter>
         </receiver>
 
+        <!-- Shares a single decrypted intruder capture (evidence export) via a temporary content URI -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
         <!-- Quick Settings tile: start/stop guarding -->
         <service
             android:name=".core.system.GuardTileService"

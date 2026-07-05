@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.LockClock
 import androidx.compose.material.icons.filled.PersonAdd
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -126,6 +127,24 @@ fun IntrudersScreen(
                     }
                 },
                 onBlock = { blockName = ""; blockFor = capture; preview = null },
+                onShare = {
+                    viewModel.exportCapture(capture) { uri, caption ->
+                        if (uri == null) {
+                            Toast.makeText(context, "Couldn't prepare this photo to share", Toast.LENGTH_SHORT).show()
+                            return@exportCapture
+                        }
+                        val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                            type = "image/jpeg"
+                            putExtra(android.content.Intent.EXTRA_STREAM, uri)
+                            putExtra(android.content.Intent.EXTRA_TEXT, caption)
+                            addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }
+                        runCatching {
+                            context.startActivity(android.content.Intent.createChooser(send, "Share evidence"))
+                        }.onFailure { Toast.makeText(context, "No app to share to", Toast.LENGTH_SHORT).show() }
+                    }
+                    preview = null
+                },
                 onDelete = { viewModel.delete(capture); preview = null },
             )
         }
@@ -303,6 +322,7 @@ private fun PreviewSheet(
     viewModel: IntrudersViewModel,
     onAddFace: () -> Unit,
     onBlock: () -> Unit,
+    onShare: () -> Unit,
     onDelete: () -> Unit,
 ) {
     val bitmap by produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, capture.id) {
@@ -346,6 +366,12 @@ private fun PreviewSheet(
                 Icon(Icons.Filled.Block, contentDescription = null)
                 Spacer(Modifier.width(Spacing.sm))
                 Text("Add as blocked person")
+            }
+            Spacer(Modifier.height(Spacing.sm))
+            OutlinedButton(onClick = onShare, modifier = Modifier.fillMaxWidth()) {
+                Icon(Icons.Filled.Share, contentDescription = null)
+                Spacer(Modifier.width(Spacing.sm))
+                Text("Share as evidence")
             }
             Spacer(Modifier.height(Spacing.sm))
             OutlinedButton(onClick = onDelete, modifier = Modifier.fillMaxWidth()) {

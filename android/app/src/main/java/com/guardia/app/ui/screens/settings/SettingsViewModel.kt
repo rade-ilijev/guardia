@@ -53,12 +53,22 @@ class SettingsViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
     val captureIntruders: StateFlow<Boolean> = prefs.captureIntruders
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+    /** Consecutive failed device unlocks before a wrong-unlock selfie is captured (1 = every one). */
+    val wrongUnlockThreshold: StateFlow<Int> = prefs.wrongUnlockThreshold
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 1)
     val lowLightAction: StateFlow<Int> = prefs.lowLightAction
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 1)
     val voiceListeningMode: StateFlow<Int> = prefs.voiceListeningMode
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
     val testMode: StateFlow<Boolean> = prefs.testMode
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+    /** Opt-in local crash log (never uploaded). */
+    val crashLogEnabled: StateFlow<Boolean> = prefs.crashLogEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    fun setCrashLogEnabled(value: Boolean) = viewModelScope.launch { prefs.setCrashLogEnabled(value) }
+    fun readCrashLog(): String = com.guardia.app.core.system.CrashLogger.read(context)
+    fun clearCrashLog() = com.guardia.app.core.system.CrashLogger.clear(context)
 
     fun setResponsiveness(level: Int) = viewModelScope.launch { prefs.setResponsiveness(level) }
     fun setIntervalCheckEnabled(value: Boolean) = viewModelScope.launch { prefs.setIntervalCheckEnabled(value) }
@@ -80,6 +90,7 @@ class SettingsViewModel @Inject constructor(
     fun setLockOnMultipleFaces(value: Boolean) = viewModelScope.launch { prefs.setLockOnMultipleFaces(value) }
     fun setLockOnNoFace(value: Boolean) = viewModelScope.launch { prefs.setLockOnNoFace(value) }
     fun setCaptureIntruders(value: Boolean) = viewModelScope.launch { prefs.setCaptureIntruders(value) }
+    fun setWrongUnlockThreshold(value: Int) = viewModelScope.launch { prefs.setWrongUnlockThreshold(value.coerceIn(1, 5)) }
     fun setLowLightAction(value: Int) = viewModelScope.launch { prefs.setLowLightAction(value) }
 
     fun setVoiceMode(mode: Int) = viewModelScope.launch {

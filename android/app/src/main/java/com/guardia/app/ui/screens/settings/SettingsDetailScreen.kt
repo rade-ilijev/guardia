@@ -17,9 +17,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bolt
@@ -38,11 +40,13 @@ import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.WorkspacePremium
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
@@ -504,6 +508,7 @@ private fun ResponseSection(viewModel: SettingsViewModel) {
     val multiFace by viewModel.lockOnMultipleFaces.collectAsStateWithLifecycle()
     val noFace by viewModel.lockOnNoFace.collectAsStateWithLifecycle()
     val capture by viewModel.captureIntruders.collectAsStateWithLifecycle()
+    val wrongUnlockThreshold by viewModel.wrongUnlockThreshold.collectAsStateWithLifecycle()
 
     InfoBanner(
         "Choose exactly when Guardia locks the phone during a background check. Locking uses Device Admin — enable it in System & Reliability.",
@@ -559,6 +564,59 @@ private fun ResponseSection(viewModel: SettingsViewModel) {
             viewModel::setCaptureIntruders,
             subtitle = "Save an encrypted selfie of whoever triggered the lock. View them in Activity.",
         )
+        if (capture) {
+            RowDivider()
+            StepperRow(
+                title = "Capture after failed unlocks",
+                subtitle = if (wrongUnlockThreshold == 1)
+                    "Snap a selfie on every wrong device-unlock attempt."
+                else
+                    "Snap a selfie after $wrongUnlockThreshold wrong unlock attempts in a row.",
+                value = wrongUnlockThreshold,
+                valueLabel = wrongUnlockThreshold.toString(),
+                onDecrement = { viewModel.setWrongUnlockThreshold(wrongUnlockThreshold - 1) },
+                onIncrement = { viewModel.setWrongUnlockThreshold(wrongUnlockThreshold + 1) },
+                min = 1,
+                max = 5,
+            )
+        }
+    }
+}
+
+/** A labelled −/+ stepper row for small bounded integer settings. */
+@Composable
+private fun StepperRow(
+    title: String,
+    subtitle: String,
+    value: Int,
+    valueLabel: String,
+    onDecrement: () -> Unit,
+    onIncrement: () -> Unit,
+    min: Int,
+    max: Int,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Spacer(Modifier.width(12.dp))
+        androidx.compose.material3.FilledTonalIconButton(onClick = onDecrement, enabled = value > min) {
+            Icon(Icons.Filled.Remove, contentDescription = "Decrease")
+        }
+        Text(
+            valueLabel,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+            modifier = Modifier.widthIn(min = 24.dp).padding(horizontal = 4.dp),
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+        )
+        androidx.compose.material3.FilledTonalIconButton(onClick = onIncrement, enabled = value < max) {
+            Icon(Icons.Filled.Add, contentDescription = "Increase")
+        }
     }
 }
 
@@ -899,6 +957,8 @@ private fun PrivacySection(viewModel: SettingsViewModel) {
     val context = LocalContext.current
     // Which bundled legal document to display full-screen (null = none).
     var legalDoc by remember { mutableStateOf<Int?>(null) }
+    val crashLogEnabled by viewModel.crashLogEnabled.collectAsStateWithLifecycle()
+    var crashLog by remember { mutableStateOf<String?>(null) }
 
     InfoBanner(
         "Guardia is built to be private: your face data and embeddings stay in this app's private storage and are never uploaded, and intruder photos and saved credentials are encrypted at rest. You control every permission and can erase everything anytime.",
@@ -931,6 +991,52 @@ private fun PrivacySection(viewModel: SettingsViewModel) {
         "Want a clean slate? Uninstalling Guardia permanently erases all on-device data — faces, photos, PINs, logs, and settings. We keep no copy.",
         Icons.Filled.Info,
     )
+    SettingsGroup(title = "Diagnostics") {
+        SwitchRow(
+            "Local crash log",
+            crashLogEnabled,
+            viewModel::setCrashLogEnabled,
+            subtitle = "If Guardia ever crashes, save the technical details to this device so you can share them with support. Guardia has no analytics — nothing is uploaded automatically.",
+        )
+        if (crashLogEnabled) {
+            RowDivider()
+            com.guardia.app.ui.components.NavRow(
+                "View crash log",
+                subtitle = "Read, share, or clear the saved crash details.",
+                onClick = {
+                    val text = viewModel.readCrashLog()
+                    crashLog = text.ifBlank { "No crashes recorded. 🎉" }
+                },
+            )
+        }
+    }
+    crashLog?.let { text ->
+        AlertDialog(
+            onDismissRequest = { crashLog = null },
+            title = { Text("Crash log") },
+            text = {
+                androidx.compose.foundation.rememberScrollState().let { scroll ->
+                    Column(Modifier.heightIn(max = 360.dp).verticalScroll(scroll)) {
+                        Text(text, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(android.content.Intent.EXTRA_SUBJECT, "Guardia crash log")
+                        putExtra(android.content.Intent.EXTRA_TEXT, text)
+                    }
+                    runCatching { context.startActivity(android.content.Intent.createChooser(send, "Share crash log")) }
+                    crashLog = null
+                }) { Text("Share") }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.clearCrashLog(); crashLog = null }) { Text("Clear") }
+            },
+        )
+    }
     SettingsGroup(title = "Legal") {
         com.guardia.app.ui.components.NavRow(
             "Privacy Policy",

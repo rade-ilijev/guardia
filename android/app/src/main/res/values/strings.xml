@@ -23,7 +23,7 @@
         res/raw/privacy_policy.txt and res/raw/terms_of_use.txt and shown in-app (no website needed).
         Edit the three values below in ONE place; they are substituted into both documents at display.
     -->
-    <string name="legal_developer_name" translatable="false">Guardia</string>
-    <string name="legal_contact_email" translatable="false">support@guardia.app</string>
-    <string name="legal_updated_date" translatable="false">June 2026</string>
+    <string name="legal_developer_name" translatable="false">Rade Ilijev</string>
+    <string name="legal_contact_email" translatable="false">radeilijev1@gmail.com</string>
+    <string name="legal_updated_date" translatable="false">July 5, 2026</string>
 </resources>

@@ -172,20 +172,23 @@ feature and before the runtime permission prompt:
 
 ---
 
-## 6. Optional "Play-safe" build (recommended for first approval)
+## 6. The "play" product flavor (use this for submission)
 
-To minimize restricted-permission review on your first release, build a variant that removes the
-most-scrutinized features. Reintroduce them later via separate, well-justified updates.
+The policy-light build is now a real product flavor. Build it with `:app:bundlePlayRelease` /
+`:app:assemblePlayRelease`. The `play` flavor keeps the published `applicationId` `com.guardia.app`;
+the sideload `full` flavor uses `com.guardia.app.full`.
 
-Remove / disable for the Play-safe variant:
-- `SEND_SMS`, `RECEIVE_SMS`, and the `SmsReceiver` (drop Find-my-phone-by-SMS; keep email alerts).
-- `ACCESS_BACKGROUND_LOCATION` (keep foreground-only location, or drop location entirely).
-- Optionally the Accessibility service (drop per-app face checks / App Lock for v1).
+What the `play` flavor removes vs. `full` (via `app/src/play/` overlays + `BuildConfig.PLAY_BUILD`):
+- `SEND_SMS`, `RECEIVE_SMS`, and the `SmsReceiver` — no SMS intruder alerts or SMS find-my-phone
+  (email alerts remain). The SMS/find-my-phone settings UI is hidden.
+- `ACCESS_BACKGROUND_LOCATION` — foreground-only location stays (safe zones work while in use).
+- **Accessibility screen-capture capability** — `app/src/play/res/xml/accessibility_service_config.xml`
+  drops `canTakeScreenshot`, `canRetrieveWindowContent`, and `flagRetrieveInteractiveWindows`; the
+  service only detects the foreground app. Per-app checks use the opaque "Loading" style
+  (blur/freeze are full-flavor). This removes most of the accessibility flag surface reviewers scan.
 
-The codebase already isolates these (e.g. `SmsReceiver` is disabled by default; the build file notes
-that `full`/`play` product flavors are planned). If you want, I can wire up a proper `play` product
-flavor that strips these permissions/components at build time so a single `:app:assemblePlayRelease`
-produces the policy-light AAB while your `full` build keeps everything.
+The Accessibility service itself is still present in the `play` build (for per-app checks, App Lock,
+tamper detection); if you'd rather ship v1 without it entirely, that can be a further overlay.
 
 ---
 
@@ -193,9 +196,8 @@ produces the policy-light AAB while your `full` build keeps everything.
 
 - [ ] Set final `versionCode`/`versionName`.
 - [ ] Create an upload key and configure `signing.properties` (see `android/` build config); build a
-      signed **AAB** (`:app:bundleRelease`).
-- [ ] Provide a real on-device face model in `android/app/src/main/assets/` (`mobilefacenet.tflite`
-      or `facenet.tflite`) so recognition is accurate; otherwise it falls back to a weak descriptor.
+      signed **AAB** with `:app:bundlePlayRelease`.
+- [x] On-device face model shipped at `android/app/src/main/assets/mobilefacenet.tflite`.
 - [ ] Set the Picovoice access key in `local.properties` if shipping voice, or the voice feature
       stays disabled (acceptable).
 - [ ] Host the Privacy Policy at a public URL and add it to the listing + in-app.
@@ -217,6 +219,19 @@ produces the policy-light AAB while your `full` build keeps everything.
 - **Removed unused `wipe-data` Device Admin policy** and corrected the device-admin description so the
   app accurately claims it only locks and never wipes. (Files: `res/xml/device_admin_policies.xml`,
   `res/values/strings.xml`.)
+- **`play` / `full` product flavors wired** (§6): the store build strips SMS, background location,
+  and the accessibility screen-capture capability at build time.
+- **Prominent background-camera disclosure** now shown in-app before guarding first starts
+  (`ui/screens/dashboard/DashboardScreen.kt`), satisfying the §4 in-context disclosure requirement.
+- **QS tile can no longer disable protection without the real PIN** (`core/guard/StopGuardActivity.kt`).
+- **Find-my-phone defaults to trusted-number-only**, so a leaked keyword alone can't locate the
+  device (`core/alerts/SmsReceiver.kt`) — full flavor only.
+- **Accurate privacy copy:** the app no longer claims face data is "encrypted" (it is on-device and
+  never uploaded; intruder photos and the SMTP password are encrypted at rest).
+- **Release hardening:** R8 code + resource shrinking enabled with keep rules; the destructive Room
+  migration fallback is debug-only so a schema slip can't wipe enrolled faces in production.
+- **Privacy Policy / Terms placeholders filled** (developer, contact, date, EU jurisdiction) and kept
+  in sync with the in-app copies via `res/values/strings.xml`.
 
 ---
 

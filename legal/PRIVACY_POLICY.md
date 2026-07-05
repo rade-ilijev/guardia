@@ -1,10 +1,10 @@
 # Guardia — Privacy Policy
 
-**Effective date:** [INSERT DATE]
-**Last updated:** [INSERT DATE]
+**Effective date:** July 5, 2026
+**Last updated:** July 5, 2026
 **App:** Guardia (Android package `com.guardia.app`)
-**Developer / Data controller:** [INSERT YOUR NAME OR LEGAL ENTITY]
-**Contact:** [INSERT SUPPORT EMAIL]
+**Developer / Data controller:** Rade Ilijev
+**Contact:** radeilijev1@gmail.com
 
 > **Where to read this:** This Privacy Policy is built into the app — open
 > **Settings → Privacy & Data → Privacy Policy** to read the full text on your device at any time,
@@ -127,7 +127,7 @@ You are in control of everything:
 If you are in a region with data-protection laws (e.g. GDPR/UK GDPR, CCPA/CPRA), you have rights to
 access, correct, delete, port, or restrict your personal data. Because we do not hold your on-device
 data, you exercise those rights directly with the in-app controls and by uninstalling. For anything
-involving information you sent us (such as a support email), contact [INSERT SUPPORT EMAIL].
+involving information you sent us (such as a support email), contact radeilijev1@gmail.com.
 
 ---
 
@@ -176,7 +176,7 @@ exposure surface is minimized. Keep your OS updated and your screen lock on for 
 ## 12. International users
 
 Guardia processes your data on your own device, wherever you are. If you email us, your message and
-the address you use may be processed in [INSERT COUNTRY/REGION]. We do not otherwise transfer your
+the address you use may be processed in the European Union. We do not otherwise transfer your
 personal data internationally because we do not collect it on servers.
 
 ---
@@ -191,5 +191,5 @@ be highlighted in the app where feasible.
 
 ## 14. Contact
 
-**[INSERT YOUR NAME OR LEGAL ENTITY]**
-Email: [INSERT SUPPORT EMAIL]
+**Rade Ilijev**
+Email: radeilijev1@gmail.com

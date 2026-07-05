@@ -1,10 +1,10 @@
 # Guardia — Terms of Use (End User License Agreement)
 
-**Effective date:** [INSERT DATE]
-**Last updated:** [INSERT DATE]
+**Effective date:** July 5, 2026
+**Last updated:** July 5, 2026
 **App:** Guardia (Android package `com.guardia.app`)
-**Provider:** [INSERT YOUR NAME OR LEGAL ENTITY] ("we", "us", "our")
-**Contact:** [INSERT SUPPORT EMAIL]
+**Provider:** Rade Ilijev ("we", "us", "our")
+**Contact:** radeilijev1@gmail.com
 
 > **Where to read this:** These Terms are built into the app — open
 > **Settings → Privacy & Data → Terms of Use** to read the full text on your device at any time. By
@@ -126,7 +126,7 @@ jurisdictions do not allow certain exclusions, so some of the above may not appl
 
 ## 9. Limitation of liability
 
-To the maximum extent permitted by law, in no event will [INSERT YOUR NAME OR LEGAL ENTITY] be liable
+To the maximum extent permitted by law, in no event will Rade Ilijev be liable
 for any indirect, incidental, special, consequential, exemplary, or punitive damages, or for any loss
 of data, theft, property damage, personal injury, lost profits, or lost goodwill, arising out of or
 relating to your use of (or inability to use) the App, even if advised of the possibility.
@@ -142,7 +142,7 @@ Nothing in these Terms excludes or limits liability that cannot be excluded unde
 
 ## 10. Indemnification
 
-You agree to indemnify and hold harmless [INSERT YOUR NAME OR LEGAL ENTITY] from any claims, damages,
+You agree to indemnify and hold harmless Rade Ilijev from any claims, damages,
 liabilities, and expenses (including reasonable legal fees) arising from your misuse of the App, your
 violation of these Terms, or your violation of any law or third-party right (including any unlawful
 monitoring, recording, or tracking of another person).
@@ -168,7 +168,7 @@ termination.
 
 ## 13. Governing law
 
-These Terms are governed by the laws of [INSERT GOVERNING JURISDICTION], without regard to conflict of
+These Terms are governed by the laws of the European Union, without regard to conflict of
 laws rules, except where mandatory consumer-protection law in your country of residence provides
 otherwise. Nothing here deprives you of mandatory consumer rights where you live.
 
@@ -185,5 +185,5 @@ with those providers beyond ordinary use of their published SDKs/services.
 
 ## 15. Contact
 
-**[INSERT YOUR NAME OR LEGAL ENTITY]**
-Email: [INSERT SUPPORT EMAIL]
+**Rade Ilijev**
+Email: radeilijev1@gmail.com

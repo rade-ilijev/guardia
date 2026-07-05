@@ -1,34 +1,54 @@
 # Guardia (Android)
 
-On-device AI security app that continuously verifies who is using the device (face + voice) and locks/defends it when an unauthorized person is detected. No biometric data leaves the device.
+On-device AI security app that continuously verifies who is using the device (face + optional voice
+safeword) and locks/defends it when an unauthorized person is detected. No biometric data ever
+leaves the device — networking is used only for features the user explicitly configures (SMTP email
+/ SMS alerts, find-my-phone) and Google Play subscription billing.
 
-See the full plans in [`../docs`](../docs) and the master plan at `../guardia_android_security_plan_45e3547a.plan.md`.
+See the architecture write-up in [`../docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md), the Play
+submission/compliance pack in [`../legal/PLAY_STORE_SUBMISSION.md`](../legal/PLAY_STORE_SUBMISSION.md),
+and the legal texts in [`../legal`](../legal).
 
 ## Stack
-- Kotlin, Jetpack Compose (Material 3), Hilt, Coroutines, DataStore, Navigation-Compose.
-- Build flavors: `full` (sideload, all features) and `play` (policy-safe lite).
-- minSdk 26, targetSdk 35, applicationId `com.guardia.app` (`com.guardia.app.play` for the play flavor).
+- Kotlin, Jetpack Compose (Material 3), Hilt, Coroutines, DataStore, Room, Navigation-Compose.
+- On-device ML: ML Kit face detection + a MobileFaceNet TFLite/LiteRT embedder + cosine matching.
+- minSdk 26, targetSdk 35, compileSdk 35.
+
+## Product flavors
+Two distribution variants (dimension `distribution`):
+
+| Flavor | applicationId | Purpose |
+|---|---|---|
+| `play` | `com.guardia.app` | Google Play build. Drops SMS + background location and ships a minimal Accessibility config (no screen capture) to minimise restricted-permission review. |
+| `full` | `com.guardia.app.full` | Sideload build with every capability (SMS find-my-phone, background location, screenshot-based per-app check styles). |
+
+`BuildConfig.PLAY_BUILD` gates the feature differences at runtime; the `play` source set
+(`app/src/play/`) overlays a trimmed manifest and accessibility config.
 
 ## Build
 ```
-./gradlew :app:assembleFullDebug      # full (sideload) flavor
-./gradlew :app:assemblePlayDebug      # play (lite) flavor
+./gradlew :app:assemblePlayDebug      # Play (store) build
+./gradlew :app:assembleFullDebug      # full (sideload) build
+./gradlew :app:bundlePlayRelease      # signed AAB for the Play Console
+./gradlew testPlayDebugUnitTest       # JVM unit tests
 ```
+Release builds are R8-shrunk and resource-shrunk (keep rules in `app/proguard-rules.pro`) and are
+signed from `signing.properties` (see `signing.properties.example`).
 
-## Current state (scaffold)
-Architecture skeleton in place and building:
-- `core/guard` — `GuardController` (state) + `GuardService` (foreground service) + engine stubs (`RulesEngine`, `CaptureGate`, `Responder`).
-- `core/ml` — `FacePipeline` / `VoicePipeline` interfaces (our own recognition AI; Android has no face-recognition API).
-- `core/system` — `GuardAccessibilityService`, `GuardDeviceAdminReceiver`, `BootReceiver`, `GuardTileService`.
-- `core/security` — `CryptoManager` stub.
-- `data/settings` — `SettingsRepository` (DataStore).
-- `ui` — Compose theme, navigation, Dashboard (start/stop) + Settings (13 categories).
+## Configuration
+- Ship a real on-device face model at `app/src/main/assets/mobilefacenet.tflite` (already present) so
+  recognition is accurate; without it the embedder degrades to a weak grayscale fallback.
+- Set `picovoice.accessKey` in `local.properties` to enable the voice safeword; empty disables it.
+- Fill the three legal display values in `res/values/strings.xml` (`legal_developer_name`,
+  `legal_contact_email`, `legal_updated_date`) — they are substituted into the in-app Privacy Policy
+  and Terms and should match the hosted copies in [`../legal`](../legal).
 
-## Next (Phase 0 spike)
-Wire real behavior on top of the scaffold and validate on 3-4 OEM devices:
-1. CameraX capture in `GuardService` (camera FGS, while-in-use rules).
-2. ML pipeline: ML Kit detect -> MobileFaceNet -> MiniFASNet liveness -> ObjectBox match.
-3. Device Admin `lockNow()` on failed check.
-4. Wrong-unlock capture via `onPasswordFailed` + overlay (measure per-OEM reliability).
-5. Mic listen-window voice fallback.
-6. Battery baseline (naive vs sensor-gated).
+## Key modules (`com.guardia.app`)
+- `core/ml` — face detection, alignment, embedding, cosine matching.
+- `core/guard` — `GuardController`/`GuardService` (foreground guard loop), `CaptureGate`,
+  `RulesEngine`, `Responder`, `StopGuardActivity` (PIN gate for the QS tile).
+- `core/system` — Accessibility, Device Admin, intruder capture, tamper, boot, QS tile, crash logger.
+- `core/appcheck` / `core/applock` — per-app face check overlay and PIN-gated App Lock.
+- `core/voice` / `core/location` / `core/alerts` — safeword, safe zones, email/SMS alerts.
+- `core/security` / `core/billing` — Keystore crypto + PINs, Play Billing + cached entitlement.
+- `data`, `data/db`, `di`, `domain/model`, `ui` — repositories/Room/DataStore, Hilt, models, Compose.

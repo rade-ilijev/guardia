@@ -1,0 +1,167 @@
+GUARDIA — TERMS OF USE (END USER LICENSE AGREEMENT)
+
+Last updated: {{UPDATED}}
+Provider: {{DEVELOPER}}
+Contact: {{CONTACT}}
+
+By downloading, installing, or using Guardia (the "App"), you agree to these Terms. If you do not
+agree, do not use the App.
+
+
+1. THE APP AND YOUR LICENSE
+
+Guardia is an on-device phone-security app that uses your device's camera and optional sensors to
+help verify who is using the device, lock the screen when an unauthorized person is detected, and
+provide related security features (per-app protection, intruder evidence, optional alerts, optional
+location-based behavior, optional voice control).
+
+We grant you a personal, limited, non-exclusive, non-transferable, revocable license to install and
+use the App on a device you own or control, for your personal, lawful use, subject to these Terms.
+
+
+2. YOU ARE IN CONTROL
+
+You decide what the App does. Every sensitive capability is opt-in and can be turned off:
+- You grant or revoke each permission in Android Settings (or via Settings > Privacy & Data >
+  Permissions & control in the App).
+- You choose whether guarding runs, which apps are protected, and whether alerts, voice, location,
+  and find-my-phone are enabled.
+- You can delete your data in the App and fully erase it by uninstalling.
+
+Disabling a permission or feature only disables the matching functionality; it does not otherwise
+affect your rights.
+
+
+3. ACCEPTABLE USE AND YOUR RESPONSIBILITIES
+
+You agree that you will:
+  1. Only install Guardia on a device you own or are authorized to administer.
+  2. Comply with all applicable laws, including privacy, surveillance, recording, biometric, and
+     data-protection laws where you live.
+  3. Obtain any legally required consent before using the App in a way that may capture images of, or
+     otherwise affect, other people. In many places it is illegal to secretly record, photograph,
+     monitor, or track another person without their knowledge and consent. You are solely
+     responsible for how you use the App and for anything it captures about other people.
+  4. Use the alert features responsibly. SMS/email features send messages from your own
+     account/carrier to recipients you choose; you are responsible for message/data charges and for
+     the recipients you configure.
+  5. Keep your PINs and credentials confidential.
+
+You agree that you will NOT use the App to stalk, harass, surveil, or harm anyone; use it on someone
+else's device without lawful authority and consent; reverse engineer it except as the law allows; or
+use it for any unlawful purpose. You assume full responsibility for ensuring your use is legal where
+you are.
+
+
+4. BIOMETRIC AND CAMERA FEATURES
+
+Guardia processes facial images on your device to recognize enrolled, authorized faces. By enrolling
+a face, you represent that it is your face, or that you have that person's informed consent to enroll
+and process their facial data on your device. We never receive or store this data. Some places
+regulate "biometric information" strictly; you are responsible for compliance for any face you
+enroll.
+
+
+5. PERMISSIONS AND DEVICE ADMIN
+
+The App requests Android permissions only for the features you enable, and you may grant or deny them
+at any time. The Device Admin capability is used solely to lock the screen and never to wipe or erase
+your device.
+
+
+6. SUBSCRIPTIONS, TRIALS, AND PAYMENTS
+
+- Guardia offers an optional Premium subscription sold through Google Play Billing, unlocking
+  additional features (for example App Lock, security profiles, alerts, location-based protection,
+  custom check intervals).
+- Billing, free trials, renewal, and cancellation are governed by Google Play and your Google
+  account. Subscriptions renew automatically unless cancelled at least 24 hours before the period
+  ends. Manage or cancel anytime in Google Play.
+- Prices, trial length, and availability are shown in the App at purchase and may change
+  prospectively.
+- Refunds follow Google Play's policies and applicable law. We do not process or store payment card
+  details.
+
+
+7. NO GUARANTEE OF SECURITY OUTCOMES
+
+Guardia is a best-effort security aid, not a guarantee of safety, recovery, or prevention. Mobile
+operating systems limit background camera access, locking, and messaging, and behavior varies by
+device, Android version, battery settings, and the permissions you grant. In particular:
+- Face recognition can produce false matches/rejections, especially in poor lighting or with
+  obstructions, and is not a liveness/anti-spoofing guarantee.
+- Locking depends on Device Admin being enabled and the OS honoring the request.
+- Background checks are intentionally gated for battery and may not run continuously.
+- Alerts depend on connectivity, correct configuration, and third-party services (carrier, SMTP).
+- Find-my-phone/recovery may not work if the device is offline, off, reset, or network-blocked.
+
+Do not rely on Guardia as your sole security measure. Keep your device's built-in lock screen,
+encryption, and OS updates enabled.
+
+
+8. DISCLAIMER OF WARRANTIES
+
+To the maximum extent permitted by law, the App is provided "as is" and "as available," without
+warranties of any kind, express, implied, or statutory, including merchantability, fitness for a
+particular purpose, title, and non-infringement, and any warranty that the App will be
+uninterrupted, error-free, secure, or will prevent or detect any particular event. Some
+jurisdictions do not allow certain exclusions, so some of the above may not apply to you.
+
+
+9. LIMITATION OF LIABILITY
+
+To the maximum extent permitted by law, in no event will the provider be liable for any indirect,
+incidental, special, consequential, exemplary, or punitive damages, or for any loss of data, theft,
+property damage, personal injury, lost profits, or lost goodwill, arising out of or relating to your
+use of (or inability to use) the App, even if advised of the possibility.
+
+To the maximum extent permitted by law, our total aggregate liability for all claims relating to the
+App will not exceed the greater of (a) the amount you paid us for the App in the 12 months before the
+claim, or (b) USD $20.
+
+Nothing in these Terms excludes or limits liability that cannot be excluded under applicable law
+(such as for death or personal injury caused by negligence, or for fraud).
+
+
+10. INDEMNIFICATION
+
+You agree to indemnify and hold harmless the provider from any claims, damages, liabilities, and
+expenses (including reasonable legal fees) arising from your misuse of the App, your violation of
+these Terms, or your violation of any law or third-party right (including any unlawful monitoring,
+recording, or tracking of another person).
+
+
+11. UPDATES AND CHANGES
+
+We may update the App and these Terms from time to time. The current Terms are always available in
+the App with an updated date; continued use after changes take effect constitutes acceptance. We may
+modify, suspend, or discontinue features at any time.
+
+
+12. TERMINATION
+
+These Terms apply until terminated. You may terminate by uninstalling the App. We may suspend or
+terminate your license if you breach these Terms or use the App unlawfully. Provisions that by their
+nature should survive (disclaimers, limitation of liability, indemnification, governing law) survive
+termination.
+
+
+13. GOVERNING LAW
+
+These Terms are governed by the laws of your provider's jurisdiction, without regard to conflict of
+laws rules, except where mandatory consumer-protection law in your country of residence provides
+otherwise. Nothing here deprives you of mandatory consumer rights where you live.
+
+
+14. THIRD-PARTY COMPONENTS
+
+The App uses third-party software/services, including Google Play services and billing, Google ML
+Kit, TensorFlow Lite / LiteRT, and (if enabled) Picovoice for the voice safeword. Your use of those
+components may be subject to the third parties' own terms. The App is not endorsed by or affiliated
+with those providers beyond ordinary use of their published SDKs/services.
+
+
+15. CONTACT
+
+{{DEVELOPER}}
+Email: {{CONTACT}}

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Matches DarkBackground; instant opaque cover for the face-check overlay. -->
+    <color name="guardia_overlay_bg">#FF0B0E10</color>
+</resources>

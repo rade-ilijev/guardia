@@ -1,0 +1,194 @@
+GUARDIA — PRIVACY POLICY
+
+Last updated: {{UPDATED}}
+Developer: {{DEVELOPER}}
+Contact: {{CONTACT}}
+
+
+OUR PROMISE, IN ONE PARAGRAPH
+
+Guardia is a privacy-first phone-security app. Everything sensitive — face detection, face
+recognition, intruder detection, and screen-locking — runs on your device. We have no servers, no
+account system, and no analytics, ads, or tracking. We (the developer) never receive your face, your
+face data, your photos, your messages, your contacts, or your location. The only time information
+leaves your phone is through features you switch on and configure yourself (for example, emailing
+yourself an intruder photo, or sending a "find my phone" text), and a purchase receipt handled by
+Google Play if you choose to subscribe. We have nothing to hide, and this policy explains exactly
+what the app touches, where it stays, and the controls you have over all of it.
+
+
+1. WHO THIS APPLIES TO
+
+This policy applies to anyone who installs and uses Guardia. Guardia is not directed to children and
+is intended for people old enough to own and control their own device under local law (at least 13,
+or your country's minimum age of digital consent, whichever is higher).
+
+
+2. THE CORE PRINCIPLE: ON-DEVICE PROCESSING
+
+- Face detection and recognition run locally (Google ML Kit detection plus an on-device TensorFlow
+  Lite / LiteRT model). Camera frames are analyzed in memory and are not sent anywhere.
+- Face data (mathematical "embeddings" derived from an enrolled face, plus optional face-crop
+  thumbnails) is stored only in Guardia's private storage on your device.
+- Intruder photos are stored encrypted in Guardia's private storage on your device.
+
+There is no Guardia cloud and no Guardia login. We cannot see any of this data.
+
+
+3. WHAT GUARDIA ACCESSES, WHY, AND WHERE IT GOES
+
+Camera (face)
+- Why: detect/recognize who is using the device; capture an intruder photo.
+- Where it goes: processed on-device; enrollments and encrypted intruder photos are stored locally.
+- Your control: deny/revoke the Camera permission; delete people and photos in the app.
+
+Microphone (voice safeword) — optional
+- Why: an offline wake-word to start/stop guarding hands-free.
+- Where it goes: processed live on-device; never recorded, stored, or sent.
+- Your control: off by default; turn off Voice; revoke the Microphone permission.
+
+Location — optional (Premium)
+- Why: adjust guarding by place ("safe zones"); attach a map link to alerts you set up.
+- Where it goes: used on-device; only sent inside an alert you configured, to the recipient you chose.
+- Your control: off by default; revoke Location anytime.
+
+SMS (send/receive) — optional
+- Why: "find my phone" — detect your secret keyword text, lock, and reply with location; send a
+  security text to your trusted number.
+- Where it goes: sent via your own carrier to the recipient you set.
+- Your control: the SMS receiver stays disabled until you enable Find-my-phone; revoke SMS anytime.
+
+Email alerts — optional
+- Why: email you a security event (optionally with a photo/location) using your own SMTP details.
+- Where it goes: sent directly from your device to the email server you entered.
+- Your control: off by default; your SMTP password is encrypted on-device.
+
+Installed apps / foreground app — optional
+- Why: let you pick which apps to protect; know which app is open for per-app checks and App Lock.
+- Where it goes: stays on-device; app content is never read or sent.
+- Your control: don't enable App Lock / per-app checks; revoke the Accessibility service.
+
+Security data created by the app
+- What: PINs (stored only as salted hashes), event log, settings, battery/usage stats.
+- Where it goes: stored locally on-device.
+- Your control: change/clear in the app; uninstall removes all.
+
+Purchases (subscription)
+- Why: provide and restore Guardia Premium.
+- Where it goes: handled by Google Play Billing (Google's terms apply).
+- Your control: manage/cancel in Google Play.
+
+
+4. THE ACCESSIBILITY SERVICE — EXACTLY WHAT IT DOES
+
+Guardia registers an Android Accessibility Service as a security tool, used only to:
+  1. Detect which app is in the foreground, so per-app face checks and App Lock can trigger;
+  2. Draw the blur/freeze overlay and "go home" action used to close a protected app on a failed
+     check;
+  3. Detect tampering with Guardia's protection.
+
+It does NOT read, log, collect, or transmit your screen content, your keystrokes, your messages, or
+the contents of other apps. It performs no remote data collection. You can turn it off anytime in
+Android Settings > Accessibility, and the related features simply stop.
+
+
+5. DEVICE ADMIN — EXACTLY WHAT IT DOES
+
+Guardia uses Device Admin for a single purpose: to lock the screen when an unauthorized person is
+detected (and to capture an intruder selfie on a wrong device-unlock attempt). Guardia does not, and
+cannot, erase or wipe your device — it declares no "wipe data" capability, and the "panic" PIN is
+intentionally non-destructive (it just opens a harmless decoy screen). Remove Device Admin anytime in
+Android Settings > Security.
+
+
+6. HOW WE USE INFORMATION
+
+We use the data above only to run the features on your device: verifying who is using the phone,
+locking it, saving optional evidence, applying per-app protection, and delivering the alerts you
+configure. We do not sell or rent your data, use it for advertising, share it with ad networks or
+data brokers, use third-party analytics/tracking SDKs, or build profiles about you.
+
+
+7. SHARING AND DISCLOSURE
+
+Guardia shares your personal information with no one, except:
+- At your direction: alerts you set up are sent to recipients you choose (your email/SMTP, your
+  trusted SMS number).
+- Google Play Billing: to process a subscription you buy (handled by Google).
+- Legal requirements: because your sensitive data lives on your device and not on our servers, we
+  normally have nothing to disclose. If you email us for support, we may disclose that limited
+  information if strictly required by law.
+
+
+8. YOUR CONTROL AND YOUR RIGHTS (FULL CONTROL)
+
+You are in control of everything:
+- Permissions: grant or revoke any permission anytime in Android Settings, or from Settings >
+  Privacy & Data > Permissions & control in the app, which links straight to the system screens.
+  Denying a permission only disables the matching feature.
+- Delete your data: in the app you can delete enrolled people and their face data, delete individual
+  or all intruder photos, and clear the activity log (Settings > Privacy & Data).
+- Your copy: you can export a password-protected backup of your enrollment data.
+- Erase everything: uninstalling Guardia removes all of its private storage — face embeddings,
+  thumbnails, intruder photos, PIN hashes, logs, and settings. We keep no copy, so we cannot restore
+  it (and never have it).
+- Subscriptions: manage or cancel anytime in Google Play.
+
+If you live in a region with data-protection laws (for example GDPR/UK GDPR, CCPA/CPRA), you have
+rights to access, correct, delete, port, or restrict your personal data. Because we do not hold your
+on-device data, you exercise those rights directly with the in-app controls and by uninstalling. For
+anything involving information you sent us (such as a support email), contact us.
+
+
+9. DATA RETENTION
+
+- On your device: kept until you delete it or uninstall. Intruder photos are capped and old events
+  are pruned automatically; you can also clear them manually anytime.
+- With us: nothing, because nothing is uploaded to us. Support emails you send are kept only as long
+  as needed to help you, then deleted.
+
+
+10. SECURITY
+
+- Intruder photos are encrypted at rest (Android Jetpack Security EncryptedFile, AES-256-GCM).
+- Your SMTP password is encrypted at rest with the Android Keystore.
+- PINs are stored only as salted PBKDF2-HMAC-SHA256 hashes, with brute-force lockout/backoff.
+- Sensitive components (such as the SMS receiver) stay disabled until you opt in.
+
+No system is perfectly secure, but because the most sensitive data never leaves your device, the
+exposure surface is minimized. Keep your OS updated and your screen lock on for best protection.
+
+
+11. PERMISSIONS REFERENCE
+
+- Camera: on-device face detection/recognition and intruder photos (core).
+- Microphone: optional on-device voice "safeword" (optional).
+- Foreground service (camera/microphone/location/special use): run guarding reliably with a visible
+  notification (core).
+- Post notifications: show guarding status and alerts (core).
+- Display over other apps (overlay): show the face-check / app-lock screen over a protected app
+  (per-app).
+- Receive boot completed: re-arm guarding after restart, if enabled (core).
+- Vibrate: haptic feedback (minor).
+- Internet / Network state: send the email/SMS alerts you configure; Play Billing (optional/billing).
+- Send SMS: send the security/locate text you configure (optional).
+- Receive SMS: find-my-phone — detect your secret keyword (optional, off by default).
+- Fine / Coarse / Background location: location-based protection and location in alerts (optional,
+  Premium).
+- Accessibility service: detect foreground app for per-app checks / App Lock; tamper protection
+  (per-app).
+- Device Admin: lock the screen on an unauthorized user; never wipes (core).
+- Query installed apps: let you pick which apps to protect with App Lock (optional).
+
+
+12. CHANGES TO THIS POLICY
+
+We may update this policy as the app or the law changes. The current version is always available in
+the app (Settings > Privacy & Data > Privacy Policy) with an updated date. Material changes will be
+highlighted in the app where feasible.
+
+
+13. CONTACT
+
+{{DEVELOPER}}
+Email: {{CONTACT}}

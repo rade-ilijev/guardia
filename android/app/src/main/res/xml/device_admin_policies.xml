@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<device-admin xmlns:android="http://schemas.android.com/apk/res/android">
+    <!--
+        Guardia only ever LOCKS the screen. We intentionally do NOT declare <wipe-data />:
+        the app never wipes the device (the "panic" PIN is dev-safe and routes to the decoy
+        screen). watch-login is used solely to capture an intruder selfie on a wrong unlock.
+    -->
+    <uses-policies>
+        <force-lock />
+        <watch-login />
+    </uses-policies>
+</device-admin>

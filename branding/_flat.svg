@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Guardia">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="36%" r="78%">
+      <stop offset="0%" stop-color="#0F2E32"/>
+      <stop offset="46%" stop-color="#0A1417"/>
+      <stop offset="100%" stop-color="#04080A"/>
+    </radialGradient>
+    <linearGradient id="shield" x1="256" y1="96" x2="256" y2="448" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#5CFCE2"/>
+      <stop offset="46%" stop-color="#21E3C9"/>
+      <stop offset="100%" stop-color="#0A8C9E"/>
+    </linearGradient>
+    <linearGradient id="sheen" x1="256" y1="96" x2="256" y2="252" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="ink" x1="256" y1="130" x2="256" y2="374" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#041012"/>
+      <stop offset="100%" stop-color="#062A2C"/>
+    </linearGradient>
+    <!-- Mark gradient: bright white sweeping into brand blue (diagonal sheen) -->
+    <linearGradient id="gmark" x1="196" y1="150" x2="330" y2="350" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="42%" stop-color="#A6FFF1"/>
+      <stop offset="100%" stop-color="#12BFD4"/>
+    </linearGradient>
+    <filter id="glow" x="-35%" y="-35%" width="170%" height="170%">
+      <feGaussianBlur stdDeviation="11" result="b"/>
+      <feMerge>
+        <feMergeNode in="b"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- App tile -->
+  <rect width="512" height="512" rx="116" fill="#0A1416"/>
+
+  <g >
+    <!-- Modern gem-shield -->
+    <path d="M256,96 C300,96 330,98 360,104 C392,110 404,122 408,152 C414,196 410,250 392,300 C368,366 318,414 262,448 C258,450 254,450 250,448 C194,414 144,366 120,300 C102,250 98,196 104,152 C108,122 120,110 152,104 C182,98 212,96 256,96 Z"
+          fill="#1FE0C6"/>
+    <!-- Neon inner rim -->
+    <path d="M256,96 C300,96 330,98 360,104 C392,110 404,122 408,152 C414,196 410,250 392,300 C368,366 318,414 262,448 C258,450 254,450 250,448 C194,414 144,366 120,300 C102,250 98,196 104,152 C108,122 120,110 152,104 C182,98 212,96 256,96 Z"
+          fill="none" stroke="#EAFFFB" stroke-opacity="0.4" stroke-width="3"/>
+    <!-- Glassy top sheen -->
+    <path d="M256,96 C300,96 330,98 360,104 C392,110 404,122 408,152 C412,186 410,222 400,258 C340,234 256,232 256,232 C256,232 172,234 112,258 C102,222 100,186 104,152 C108,122 120,110 152,104 C182,98 212,96 256,96 Z"
+          fill="#BFFFF4"/>
+
+    <!-- The mark: a glowing "G" that reads as a watchful eye / lens.
+         Blue-to-white gradient with rounded terminals and a soft halo (no outline). -->
+    <g fill="none" stroke-linecap="round">
+      <!-- Soft halo lifts the mark off the shield without any dark edge -->
+      <path d="M345.2,200.5 A103,103 0 1 0 345.2,303.5" stroke="#F4FFFD" stroke-opacity="0.22" stroke-width="52"/>
+      <path d="M298,252 L351,252" stroke="#F4FFFD" stroke-opacity="0.22" stroke-width="52"/>
+      <!-- Gradient body -->
+      <path d="M345.2,200.5 A103,103 0 1 0 345.2,303.5" stroke="#A6FFF1" stroke-width="36"/>
+      <path d="M298,252 L351,252" stroke="#A6FFF1" stroke-width="36"/>
+    </g>
+    <!-- Bright nodes on the open terminals -->
+    <circle cx="345.2" cy="200.5" r="7" fill="#FFFFFF"/>
+    <circle cx="298" cy="252" r="6.5" fill="#EAFFFB"/>
+    <!-- Lens catch-light -->
+    <circle cx="208" cy="210" r="11" fill="#FFFFFF" fill-opacity="0.5"/>
+  </g>
+</svg>

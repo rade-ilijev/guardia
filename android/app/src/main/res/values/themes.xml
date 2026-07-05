@@ -1,0 +1,14 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Base application theme. Compose draws the actual UI; this just provides a no-action-bar host. -->
+    <style name="Theme.Guardia" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="android:windowBackground">@android:color/black</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+    </style>
+
+    <!-- Face-check overlay: opaque window background that matches the Compose UI so the activity
+         paints instantly (no app flash) and with no enter/exit animation. -->
+    <style name="Theme.Guardia.Overlay" parent="Theme.Guardia">
+        <item name="android:windowBackground">@color/guardia_overlay_bg</item>
+        <item name="android:windowAnimationStyle">@null</item>
+    </style>
+</resources>

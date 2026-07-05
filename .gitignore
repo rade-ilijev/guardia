@@ -1,0 +1,14 @@
+# Build artifacts (rebuild from source; never commit signed binaries)
+*.apk
+*.aab
+
+# Claude Code local session data
+.claude/
+
+# Python cache (branding render script)
+__pycache__/
+*.pyc
+
+# OS noise
+.DS_Store
+Thumbs.db

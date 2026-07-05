@@ -1,0 +1,29 @@
+<resources>
+    <string name="app_name">Guardia</string>
+    <string name="tile_label">Guardia</string>
+
+    <!-- Foreground service notification -->
+    <string name="guard_channel_name">Guarding status</string>
+    <string name="guard_channel_desc">Shows whether Guardia is actively protecting this device.</string>
+    <string name="guard_notif_protected">Protected — watching who uses this device</string>
+    <string name="guard_notif_paused">Paused — guarding is off</string>
+    <string name="guard_action_pause">Pause</string>
+    <string name="guard_action_resume">Resume</string>
+
+    <!-- Accessibility service -->
+    <string name="accessibility_service_label">Guardia guarding</string>
+    <string name="accessibility_service_description">Lets Guardia detect which app is in the foreground (for per-app face checks and App Lock) and protect against tampering. No content is collected or sent anywhere.</string>
+
+    <!-- Device admin -->
+    <string name="device_admin_label">Guardia device protection</string>
+    <string name="device_admin_description">Allows Guardia to lock the screen when an unauthorized user is detected. Guardia never erases or wipes your device.</string>
+
+    <!--
+        Legal document details. The full Privacy Policy and Terms text is bundled in the app at
+        res/raw/privacy_policy.txt and res/raw/terms_of_use.txt and shown in-app (no website needed).
+        Edit the three values below in ONE place; they are substituted into both documents at display.
+    -->
+    <string name="legal_developer_name" translatable="false">Guardia</string>
+    <string name="legal_contact_email" translatable="false">support@guardia.app</string>
+    <string name="legal_updated_date" translatable="false">June 2026</string>
+</resources>

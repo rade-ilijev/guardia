@@ -8,6 +8,9 @@ import android.text.format.DateUtils
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -63,6 +66,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
@@ -525,9 +529,22 @@ private fun HeroStatusCard(
             .padding(horizontal = Spacing.sm, vertical = Spacing.md),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        StatusOrb(active = protectedNow, icon = heroIcon, accent = animColor, size = 200.dp)
+        // A soft ambient glow behind the orb adds depth so the hero feels lit from within.
+        Box(contentAlignment = Alignment.Center) {
+            Box(
+                modifier = Modifier
+                    .size(300.dp)
+                    .background(
+                        Brush.radialGradient(
+                            colors = listOf(animColor.copy(alpha = if (protectedNow) 0.16f else 0.05f), Color.Transparent),
+                        ),
+                        shape = CircleShape,
+                    ),
+            )
+            StatusOrb(active = protectedNow, icon = heroIcon, accent = animColor, size = 200.dp)
+        }
         Spacer(Modifier.height(Spacing.lg))
-        StatusChip(label = label, color = animColor)
+        StatusChip(label = label, color = animColor, live = protectedNow)
         Spacer(Modifier.height(Spacing.sm))
         Text(
             sub,
@@ -590,13 +607,35 @@ private fun BackgroundCameraDisclosureDialog(onAgree: () -> Unit, onDismiss: () 
 }
 
 @Composable
-private fun StatusChip(label: String, color: Color) {
-    Box(
+private fun StatusChip(label: String, color: Color, live: Boolean = false) {
+    // Gentle pulse for the "live" dot so PROTECTED reads as actively watching.
+    val transition = rememberInfiniteTransition(label = "chip")
+    val dotAlpha by transition.animateFloat(
+        initialValue = 0.35f,
+        targetValue = 1f,
+        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+            androidx.compose.animation.core.tween(1100),
+            androidx.compose.animation.core.RepeatMode.Reverse,
+        ),
+        label = "dotAlpha",
+    )
+    Row(
         modifier = Modifier
             .clip(RoundedCornerShape(50))
-            .background(color.copy(alpha = 0.14f))
-            .padding(horizontal = Spacing.md, vertical = 6.dp),
+            .background(color.copy(alpha = 0.12f))
+            .border(1.dp, color.copy(alpha = 0.35f), RoundedCornerShape(50))
+            .padding(horizontal = Spacing.md, vertical = 7.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
+        if (live) {
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .clip(CircleShape)
+                    .background(color.copy(alpha = dotAlpha)),
+            )
+            Spacer(Modifier.width(Spacing.sm))
+        }
         Text(
             label,
             style = MaterialTheme.typography.labelLarge,

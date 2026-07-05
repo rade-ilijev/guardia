@@ -27,10 +27,18 @@ object DeviceAdminManager {
             )
         }
 
-    /** Locks the device immediately. No-op if admin is not active. */
-    fun lockNow(context: Context) {
+    /**
+     * Locks the device immediately, returning whether a lock was actually issued. Tries Device Admin
+     * first (the primary path); if admin isn't active or the call fails, falls back to the
+     * accessibility service's global lock action (works on API 28+ without Device Admin). Having two
+     * independent mechanisms greatly improves lock reliability across OEMs and setup states.
+     */
+    fun lockNow(context: Context): Boolean {
         if (isAdminActive(context)) {
-            runCatching { dpm(context).lockNow() }
+            val ok = runCatching { dpm(context).lockNow() }.isSuccess
+            if (ok) return true
         }
+        // Fallback: accessibility global lock (no Device Admin required).
+        return GuardAccessibilityService.lockScreen()
     }
 }

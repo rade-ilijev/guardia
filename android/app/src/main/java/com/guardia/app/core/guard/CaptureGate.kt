@@ -172,9 +172,12 @@ class CaptureGate @Inject constructor(
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
 
     private companion object {
-        const val SAVER_MS = 5 * 60 * 1000L      // 5 minutes
-        const val BALANCED_MS = 150 * 1000L      // 2.5 minutes
-        const val MAX_MS = 60 * 1000L            // 1 minute
+        // Steady cadence between background face checks. Tuned so guarding actually catches an
+        // intruder in the moment (the old 1-5 min cadence felt like "nothing happens"): Max security
+        // checks every few seconds, Balanced roughly twice a minute, Saver stays battery-light.
+        const val SAVER_MS = 90 * 1000L          // 1.5 minutes
+        const val BALANCED_MS = 25 * 1000L       // 25 seconds
+        const val MAX_MS = 6 * 1000L             // 6 seconds
         const val SHAKE_THRESHOLD = 6f           // m/s^2 jolt to count as a deliberate shake
         const val SHAKE_COOLDOWN_MS = 4000L      // don't re-trigger on the same shake
     }

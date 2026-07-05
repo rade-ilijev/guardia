@@ -1,6 +1,7 @@
 package com.guardia.app.core.guard
 
 import android.content.Context
+import android.util.Log
 import com.guardia.app.core.alerts.AlertsManager
 import com.guardia.app.core.ml.FacePipeline
 import com.guardia.app.core.system.DeviceAdminManager
@@ -9,6 +10,10 @@ import com.guardia.app.data.EventsRepository
 import com.guardia.app.data.IntruderRepository
 import com.guardia.app.domain.model.GuardEvent
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -20,6 +25,15 @@ class Responder @Inject constructor(
     private val events: EventsRepository,
     private val alerts: AlertsManager,
 ) {
+    /**
+     * Evidence/alert I/O runs here — an application-scoped IO scope that is deliberately NOT tied to
+     * the GuardService/frame-analysis lifecycle. Locking the device turns the screen off, after which
+     * some OEMs immediately freeze the calling context; if the capture ran inline it could be starved
+     * before it finished (the bug where real-mode locked but never saved the selfie). Running it here,
+     * off the main thread and independent of the caller, lets it complete regardless.
+     */
+    private val ioScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     suspend fun onIntruder(
         jpegBytes: ByteArray?,
         analysis: FacePipeline.Analysis,
@@ -39,28 +53,43 @@ class Responder @Inject constructor(
             else -> "Unrecognized face detected"
         }
 
-        // The lock is the critical security action and must never depend on (or be blocked by)
-        // capturing a selfie, encrypting it, writing to the database, or sending an alert. Outside
-        // test mode we therefore lock FIRST, then do the best-effort evidence/logging/alert work —
-        // each guarded so a failure in one can never prevent or undo the lock. This is independent
-        // of the "Capture intruders" setting, which only controls whether a selfie is saved.
-        if (!testMode) {
-            runCatching { DeviceAdminManager.lockNow(context) }
-        }
-
-        var photoPath: String? = null
-        if (captureEnabled && jpegBytes != null) {
-            photoPath = runCatching { intruders.saveCapture(jpegBytes, "Guarding") }.getOrNull()
-        }
-
         if (testMode) {
-            runCatching { events.log(type, "$what - test mode (no lock)", photoPath) }
-            runCatching {
-                TestNotifier.showFaceResult(context, "Would lock now", "$what (test mode, device not locked)")
+            // Test mode never locks — it saves the selfie (if enabled) and posts a preview so the
+            // whole pipeline can be verified safely.
+            ioScope.launch {
+                val photoPath = if (captureEnabled && jpegBytes != null) {
+                    runCatching { intruders.saveCapture(jpegBytes, "Guarding") }.getOrNull()
+                } else null
+                runCatching { events.log(type, "$what - test mode (no lock)", photoPath) }
+                runCatching {
+                    TestNotifier.showFaceResult(context, "Would lock now", "$what (test mode, device not locked)")
+                }
             }
-        } else {
+            return
+        }
+
+        // REAL MODE.
+        // 1) Start persisting the evidence + alert on the independent IO scope FIRST, so encryption
+        //    and the DB write get a head start on a background thread and can finish even after the
+        //    lock turns the screen off. This is decoupled from the "Capture intruders" setting, which
+        //    only controls whether the selfie itself is saved.
+        ioScope.launch {
+            val photoPath = if (captureEnabled && jpegBytes != null) {
+                runCatching { intruders.saveCapture(jpegBytes, "Guarding") }
+                    .onFailure { Log.w(TAG, "intruder capture failed", it) }
+                    .getOrNull()
+            } else null
             runCatching { events.log(type, "$what - locked", photoPath) }
             runCatching { alerts.onSecurityEvent("$what and device locked.", jpegBytes) }
         }
+
+        // 2) Lock the device IMMEDIATELY and synchronously — the critical security action, with no
+        //    dependence on any of the I/O above. Tries Device Admin, then an accessibility fallback.
+        val locked = DeviceAdminManager.lockNow(context)
+        if (!locked) Log.w(TAG, "lockNow could not lock (no Device Admin and no accessibility service)")
+    }
+
+    private companion object {
+        const val TAG = "Responder"
     }
 }

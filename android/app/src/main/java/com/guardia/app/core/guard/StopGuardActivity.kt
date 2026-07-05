@@ -72,12 +72,15 @@ class StopGuardActivity : ComponentActivity() {
 
         setContent {
             GuardiaTheme {
-                StopGuardContent(
-                    prefs = prefs,
-                    onVerify = ::verify,
-                    onWrongAttempt = { lifecycleScope.launch { prefs.recordPinFailure() } },
-                    onCancel = { finish() },
-                )
+                Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+                    com.guardia.app.ui.components.GuardiaBackdrop()
+                    StopGuardContent(
+                        prefs = prefs,
+                        onVerify = ::verify,
+                        onWrongAttempt = { lifecycleScope.launch { prefs.recordPinFailure() } },
+                        onCancel = { finish() },
+                    )
+                }
             }
         }
     }

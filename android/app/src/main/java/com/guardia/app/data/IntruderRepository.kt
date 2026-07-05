@@ -20,18 +20,21 @@ class IntruderRepository @Inject constructor(
     }
 
     /** Encrypts the JPEG bytes and records the capture. Returns the encrypted path. */
-    suspend fun saveCapture(jpegBytes: ByteArray, source: String): String {
-        val path = crypto.saveEncrypted(jpegBytes, "intruders")
-        dao.insert(
-            IntruderCaptureEntity(
-                id = UUID.randomUUID().toString(),
-                photoPath = path,
-                source = source,
-                timestamp = System.currentTimeMillis(),
+    suspend fun saveCapture(jpegBytes: ByteArray, source: String): String =
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            // Blocking Keystore file encryption — keep it off the caller's thread so a lock/screen-off
+            // on the caller can never truncate the write.
+            val path = crypto.saveEncrypted(jpegBytes, "intruders")
+            dao.insert(
+                IntruderCaptureEntity(
+                    id = UUID.randomUUID().toString(),
+                    photoPath = path,
+                    source = source,
+                    timestamp = System.currentTimeMillis(),
+                )
             )
-        )
-        return path
-    }
+            path
+        }
 
     fun decrypt(path: String): ByteArray? = crypto.readEncrypted(path)
 

@@ -56,12 +56,16 @@ import androidx.compose.foundation.Canvas
 import com.guardia.app.ui.theme.Spacing
 
 /**
- * App-wide ambient background: a deep vertical gradient lifted slightly at the top with a soft brand
- * glow, giving screens depth instead of a flat fill. Cheap to draw (two gradients).
+ * App-wide ambient background: a deep vertical gradient with a barely-there engineering grid and
+ * two soft brand glows (top-center and bottom-corner), giving every screen the depth of a security
+ * console instead of a flat fill. All static — one Canvas pass, no animation cost.
  */
 @Composable
 fun GuardiaBackdrop(modifier: Modifier = Modifier) {
     val scheme = MaterialTheme.colorScheme
+    val gridColor = scheme.primary.copy(alpha = 0.035f)
+    val glowTop = scheme.primary.copy(alpha = 0.07f)
+    val glowCorner = scheme.primary.copy(alpha = 0.045f)
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -73,17 +77,52 @@ fun GuardiaBackdrop(modifier: Modifier = Modifier) {
                 ),
             ),
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(360.dp)
-                .align(Alignment.TopCenter)
-                .background(
-                    Brush.verticalGradient(
-                        listOf(scheme.primary.copy(alpha = 0.06f), Color.Transparent),
-                    ),
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            // Engineering grid: fine lines every 44dp, fading out toward the bottom.
+            val step = 44.dp.toPx()
+            val strokeW = 1f
+            var x = step
+            while (x < size.width) {
+                drawLine(
+                    brush = Brush.verticalGradient(listOf(gridColor, Color.Transparent), endY = size.height * 0.85f),
+                    start = Offset(x, 0f),
+                    end = Offset(x, size.height),
+                    strokeWidth = strokeW,
+                )
+                x += step
+            }
+            var y = step
+            while (y < size.height) {
+                val fade = 1f - (y / size.height) * 0.8f
+                drawLine(
+                    color = gridColor.copy(alpha = gridColor.alpha * fade),
+                    start = Offset(0f, y),
+                    end = Offset(size.width, y),
+                    strokeWidth = strokeW,
+                )
+                y += step
+            }
+            // Top-center brand glow.
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(glowTop, Color.Transparent),
+                    center = Offset(size.width / 2f, -size.width * 0.15f),
+                    radius = size.width * 0.85f,
                 ),
-        )
+                center = Offset(size.width / 2f, -size.width * 0.15f),
+                radius = size.width * 0.85f,
+            )
+            // Bottom-right counter-glow for depth.
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(glowCorner, Color.Transparent),
+                    center = Offset(size.width * 1.05f, size.height * 1.02f),
+                    radius = size.width * 0.7f,
+                ),
+                center = Offset(size.width * 1.05f, size.height * 1.02f),
+                radius = size.width * 0.7f,
+            )
+        }
     }
 }
 
@@ -99,8 +138,8 @@ fun GuardiaScaffold(
     floatingActionButton: @Composable () -> Unit = {},
     content: @Composable (PaddingValues) -> Unit,
 ) {
+    // Note: the ambient GuardiaBackdrop is drawn once at the root (GuardiaRoot) behind all screens.
     Box(modifier = modifier.fillMaxSize()) {
-        GuardiaBackdrop()
         Scaffold(
             topBar = {
                 TopAppBar(

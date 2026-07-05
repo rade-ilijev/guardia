@@ -21,15 +21,20 @@ fun GuardiaRoot(appViewModel: AppViewModel = hiltViewModel()) {
     val gate by appViewModel.gate.collectAsStateWithLifecycle()
 
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        when (gate) {
-            AppGate.LOADING -> Loading()
-            AppGate.ONBOARDING -> OnboardingScreen(onComplete = appViewModel::onOnboardingComplete)
-            AppGate.LOCKED -> LockScreen(
-                onUnlocked = appViewModel::onUnlocked,
-                onDecoy = appViewModel::onDecoy,
-            )
-            AppGate.UNLOCKED -> MainScreen(onLock = appViewModel::lock)
-            AppGate.DECOY -> DecoyScreen()
+        Box(modifier = Modifier.fillMaxSize()) {
+            // One shared ambient console backdrop behind every screen — except the decoy,
+            // which must look like an ordinary, boring app.
+            if (gate != AppGate.DECOY) com.guardia.app.ui.components.GuardiaBackdrop()
+            when (gate) {
+                AppGate.LOADING -> Loading()
+                AppGate.ONBOARDING -> OnboardingScreen(onComplete = appViewModel::onOnboardingComplete)
+                AppGate.LOCKED -> LockScreen(
+                    onUnlocked = appViewModel::onUnlocked,
+                    onDecoy = appViewModel::onDecoy,
+                )
+                AppGate.UNLOCKED -> MainScreen(onLock = appViewModel::lock)
+                AppGate.DECOY -> DecoyScreen()
+            }
         }
     }
 }

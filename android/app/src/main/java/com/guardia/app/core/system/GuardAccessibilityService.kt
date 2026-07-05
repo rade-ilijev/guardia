@@ -63,6 +63,17 @@ class GuardAccessibilityService : AccessibilityService() {
             val svc = instance ?: return false
             return runCatching { svc.performGlobalAction(GLOBAL_ACTION_HOME) }.getOrDefault(false)
         }
+
+        /**
+         * Locks the screen via the accessibility global action (API 28+). A second, Device-Admin-free
+         * lock path so guarding can still lock when admin isn't granted, provided this service is on.
+         * Returns false if the service isn't connected or the platform is too old.
+         */
+        fun lockScreen(): Boolean {
+            val svc = instance ?: return false
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return false
+            return runCatching { svc.performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN) }.getOrDefault(false)
+        }
     }
 
     override fun onUnbind(intent: android.content.Intent?): Boolean {

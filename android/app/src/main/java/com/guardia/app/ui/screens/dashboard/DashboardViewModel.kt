@@ -65,6 +65,16 @@ class DashboardViewModel @Inject constructor(
     val responsiveness: StateFlow<Int> = prefs.responsiveness
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 1)
 
+    /** Whether the user has accepted the prominent background-camera disclosure. */
+    val disclosureAccepted: StateFlow<Boolean> = prefs.guardDisclosureAccepted
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
+    /** Records acceptance of the background-camera disclosure, then starts guarding. */
+    fun acceptDisclosureAndStart() {
+        viewModelScope.launch { prefs.setGuardDisclosureAccepted(true) }
+        if (!GuardController.isProtected) toggleGuarding()
+    }
+
     fun toggleGuarding() {
         GuardController.toggle(appContext)
         viewModelScope.launch {

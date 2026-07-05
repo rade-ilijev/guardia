@@ -34,6 +34,27 @@ android {
         buildConfigField("String", "PICOVOICE_ACCESS_KEY", "\"${localProps.getProperty("picovoice.accessKey", "")}\"")
     }
 
+    // Two distribution variants:
+    //  - full: sideload build with every capability (SMS find-my-phone, background location,
+    //          screenshot-based per-app check styles).
+    //  - play: the Google Play build. Drops the most heavily-scrutinized capabilities (SMS,
+    //          background location) and ships a minimal Accessibility config (no screen capture),
+    //          so the first store submission carries the fewest restricted declarations.
+    flavorDimensions += "distribution"
+    productFlavors {
+        create("full") {
+            dimension = "distribution"
+            applicationIdSuffix = ".full"
+            versionNameSuffix = "-full"
+            buildConfigField("boolean", "PLAY_BUILD", "false")
+        }
+        create("play") {
+            dimension = "distribution"
+            // Keeps the published applicationId `com.guardia.app`.
+            buildConfigField("boolean", "PLAY_BUILD", "true")
+        }
+    }
+
     signingConfigs {
         create("release") {
             val storeFilePath = signingProps.getProperty("storeFile") ?: return@create

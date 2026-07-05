@@ -1,0 +1,15 @@
+# Normalize line endings: store text as LF in the repo, check out native on each OS.
+* text=auto eol=lf
+
+# Windows-native scripts stay CRLF.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binary assets — never touch.
+*.tflite binary
+*.webp binary
+*.png binary
+*.jpg binary
+*.jar binary
+*.keystore binary
+*.jks binary

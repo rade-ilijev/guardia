@@ -50,13 +50,18 @@ import com.guardia.app.ui.theme.Spacing
 
 private data class PremiumFeature(val icon: ImageVector, val title: String, val subtitle: String)
 
-private val premiumFeatures = listOf(
-    PremiumFeature(Icons.Filled.PhonelinkLock, "App Lock", "Require your face to open chosen apps."),
-    PremiumFeature(Icons.Filled.NotificationsActive, "Intruder alerts", "Email & SMS alerts with an attached photo."),
-    PremiumFeature(Icons.Filled.LocationOn, "Find my phone", "Location included with security alerts."),
-    PremiumFeature(Icons.Filled.Tune, "Security profiles", "Switch guarding behavior for home, work, travel."),
-    PremiumFeature(Icons.Filled.Lock, "Custom check interval", "Fine-tune how often Guardia checks your face."),
-)
+private val premiumFeatures = buildList {
+    add(PremiumFeature(Icons.Filled.PhonelinkLock, "App Lock", "Require your face to open chosen apps."))
+    // The Play build has no SMS, so alerts/find-my-phone are email-only there.
+    if (com.guardia.app.BuildConfig.PLAY_BUILD) {
+        add(PremiumFeature(Icons.Filled.NotificationsActive, "Intruder alerts", "Email alerts with an attached photo."))
+    } else {
+        add(PremiumFeature(Icons.Filled.NotificationsActive, "Intruder alerts", "Email & SMS alerts with an attached photo."))
+        add(PremiumFeature(Icons.Filled.LocationOn, "Find my phone", "Locate by secret keyword text with a maps link."))
+    }
+    add(PremiumFeature(Icons.Filled.Tune, "Security profiles", "Switch guarding behavior for home, work, travel."))
+    add(PremiumFeature(Icons.Filled.Lock, "Custom check interval", "Fine-tune how often Guardia checks your face."))
+}
 
 @Composable
 fun PaywallScreen(

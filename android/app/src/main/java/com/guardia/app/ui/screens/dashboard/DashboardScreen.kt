@@ -99,8 +99,21 @@ fun DashboardScreen(
     val appActivity by viewModel.appActivity.collectAsStateWithLifecycle()
     val pinSet by viewModel.pinSet.collectAsStateWithLifecycle()
     val setupDismissed by viewModel.setupDismissed.collectAsStateWithLifecycle()
+    val disclosureAccepted by viewModel.disclosureAccepted.collectAsStateWithLifecycle()
     val protectedNow = state == GuardState.PROTECTED
     val haptics = LocalHapticFeedback.current
+    var showDisclosure by remember { mutableStateOf(false) }
+
+    if (showDisclosure) {
+        BackgroundCameraDisclosureDialog(
+            onAgree = {
+                showDisclosure = false
+                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                viewModel.acceptDisclosureAndStart()
+            },
+            onDismiss = { showDisclosure = false },
+        )
+    }
 
     Column(
         modifier = Modifier
@@ -115,8 +128,14 @@ fun DashboardScreen(
             state = state,
             protectedNow = protectedNow,
             onToggle = {
-                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                viewModel.toggleGuarding()
+                // Google Play requires a prominent, in-context disclosure before background camera
+                // collection begins. Show it the first time the user turns guarding on.
+                if (!protectedNow && !disclosureAccepted) {
+                    showDisclosure = true
+                } else {
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    viewModel.toggleGuarding()
+                }
             },
         )
         if (!setupDismissed) {
@@ -539,6 +558,35 @@ private fun HeroStatusCard(
             )
         }
     }
+}
+
+/**
+ * Prominent disclosure shown before the first time guarding starts, satisfying Google Play's
+ * requirement to disclose background sensor (camera) access in-context, separate from the privacy
+ * policy, with an explicit accept/decline choice.
+ */
+@Composable
+private fun BackgroundCameraDisclosureDialog(onAgree: () -> Unit, onDismiss: () -> Unit) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Filled.Shield, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+        title = { Text("Turn on guarding?") },
+        text = {
+            Text(
+                "Guardia uses your front camera in the background to check whether the person using " +
+                    "this device is you. Checks run only while the device is in use, a notification " +
+                    "stays visible while guarding is on, and images are processed on your device and " +
+                    "never uploaded.",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        },
+        confirmButton = {
+            Button(onClick = onAgree) { Text("Turn on") }
+        },
+        dismissButton = {
+            androidx.compose.material3.TextButton(onClick = onDismiss) { Text("Not now") }
+        },
+    )
 }
 
 @Composable

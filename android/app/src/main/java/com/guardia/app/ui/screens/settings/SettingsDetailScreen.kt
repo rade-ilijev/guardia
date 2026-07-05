@@ -1204,11 +1204,15 @@ private fun AppCheckSection(viewModel: AppCheckViewModel = hiltViewModel()) {
         ) { Text("Allow display over other apps") }
     }
 
-    val styles = listOf(
-        Triple("Loading spinner", "Hide the app behind a \"verifying\" screen.", 0),
-        Triple("Blur", "Show the app blurred while Guardia checks.", 1),
-        Triple("Freeze", "Show the app frozen in place while checking.", 2),
-    )
+    // Blur/Freeze render the app behind the gate using the accessibility screenshot capability,
+    // which the Play build deliberately doesn't have — offer only the opaque style there.
+    val styles = buildList {
+        add(Triple("Loading spinner", "Hide the app behind a \"verifying\" screen.", 0))
+        if (!com.guardia.app.BuildConfig.PLAY_BUILD) {
+            add(Triple("Blur", "Show the app blurred while Guardia checks.", 1))
+            add(Triple("Freeze", "Show the app frozen in place while checking.", 2))
+        }
+    }
     SettingsGroup(title = "While checking, show") {
         styles.forEachIndexed { index, (label, sub, value) ->
             RadioRow(
@@ -1652,47 +1656,51 @@ private fun AlertsSection(onUpgrade: () -> Unit = {}, viewModel: AlertsViewModel
         }
     }
 
-    SettingsGroup(title = "SMS alerts") {
-        SwitchRow(
-            "Send SMS on intruder", smsEnabled,
-            { on -> if (on) smsPerms.launch(arrayOf(Manifest.permission.SEND_SMS)); viewModel.setSmsEnabled(on) },
-            subtitle = "Texts a trusted number when the device locks.",
-        )
-    }
-    if (smsEnabled) {
-        com.guardia.app.ui.components.GuardiaCard(modifier = Modifier.fillMaxWidth()) {
-            Column(Modifier.fillMaxWidth().padding(16.dp)) {
-                FormField("Trusted phone number", trustedNumber, viewModel::setTrustedNumber)
-            }
+    // SMS alerts & SMS find-my-phone ship in the full (sideload) build only; the Play build has
+    // no SMS permissions (see the play manifest overlay), so hide these controls there.
+    if (!com.guardia.app.BuildConfig.PLAY_BUILD) {
+        SettingsGroup(title = "SMS alerts") {
+            SwitchRow(
+                "Send SMS on intruder", smsEnabled,
+                { on -> if (on) smsPerms.launch(arrayOf(Manifest.permission.SEND_SMS)); viewModel.setSmsEnabled(on) },
+                subtitle = "Texts a trusted number when the device locks.",
+            )
         }
-    }
-
-    SettingsGroup(title = "Find my phone") {
-        SwitchRow(
-            "Locate by SMS keyword", findEnabled,
-            { on ->
-                if (on) {
-                    smsPerms.launch(arrayOf(Manifest.permission.RECEIVE_SMS, Manifest.permission.SEND_SMS))
-                    locPerms.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+        if (smsEnabled) {
+            com.guardia.app.ui.components.GuardiaCard(modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.fillMaxWidth().padding(16.dp)) {
+                    FormField("Trusted phone number", trustedNumber, viewModel::setTrustedNumber)
                 }
-                viewModel.setFindEnabled(on)
-            },
-            subtitle = "Text the secret keyword to this phone to lock it and get its location.",
-        )
-    }
-    if (findEnabled) {
-        com.guardia.app.ui.components.GuardiaCard(modifier = Modifier.fillMaxWidth()) {
-            Column(Modifier.fillMaxWidth().padding(16.dp)) {
-                FormField("Secret keyword", findKeyword, viewModel::setFindKeyword)
             }
         }
-        SwitchRow(
-            "Trusted number only", findTrustedOnly, viewModel::setFindTrustedOnly,
-            subtitle = if (findTrustedOnly && trustedNumber.isBlank())
-                "Set a trusted phone number above — locate requests are ignored until one is set."
-            else
-                "Only react to the keyword when it's sent from your trusted number. Turning this off lets any phone that knows the keyword locate this device.",
-        )
+
+        SettingsGroup(title = "Find my phone") {
+            SwitchRow(
+                "Locate by SMS keyword", findEnabled,
+                { on ->
+                    if (on) {
+                        smsPerms.launch(arrayOf(Manifest.permission.RECEIVE_SMS, Manifest.permission.SEND_SMS))
+                        locPerms.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+                    }
+                    viewModel.setFindEnabled(on)
+                },
+                subtitle = "Text the secret keyword to this phone to lock it and get its location.",
+            )
+        }
+        if (findEnabled) {
+            com.guardia.app.ui.components.GuardiaCard(modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.fillMaxWidth().padding(16.dp)) {
+                    FormField("Secret keyword", findKeyword, viewModel::setFindKeyword)
+                }
+            }
+            SwitchRow(
+                "Trusted number only", findTrustedOnly, viewModel::setFindTrustedOnly,
+                subtitle = if (findTrustedOnly && trustedNumber.isBlank())
+                    "Set a trusted phone number above — locate requests are ignored until one is set."
+                else
+                    "Only react to the keyword when it's sent from your trusted number. Turning this off lets any phone that knows the keyword locate this device.",
+            )
+        }
     }
 
     Button(

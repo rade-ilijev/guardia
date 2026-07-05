@@ -30,7 +30,9 @@ class GuardAccessibilityService : AccessibilityService() {
     override fun onServiceConnected() {
         super.onServiceConnected()
         instance = this
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        // The Play build ships a minimal accessibility config with no screen-capture capability, so
+        // never offer a screenshot provider there (per-app checks fall back to the opaque style).
+        if (!com.guardia.app.BuildConfig.PLAY_BUILD && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             appTriggerManager.screenshotProvider = ScreenshotProvider { onResult -> takeAppScreenshot(onResult) }
         }
     }

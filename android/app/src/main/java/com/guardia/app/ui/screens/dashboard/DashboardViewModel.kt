@@ -91,6 +91,18 @@ class DashboardViewModel @Inject constructor(
         viewModelScope.launch { prefs.setTestMode(value) }
     }
 
+    /**
+     * Immediately locks the device to prove the lock mechanism works on this hardware. Returns
+     * whether a lock was actually issued (false = neither Device Admin nor the accessibility service
+     * is available, so guarding can detect but not lock).
+     */
+    fun testDeviceLock(): Boolean =
+        com.guardia.app.core.system.DeviceAdminManager.lockNow(appContext)
+
+    /** Whether guarding currently has any way to lock the device. */
+    fun canLockDevice(): Boolean =
+        com.guardia.app.core.system.DeviceAdminManager.canLock(appContext)
+
     fun dismissSetup() {
         viewModelScope.launch { prefs.setSetupDismissed(true) }
     }

@@ -64,6 +64,9 @@ class GuardAccessibilityService : AccessibilityService() {
             return runCatching { svc.performGlobalAction(GLOBAL_ACTION_HOME) }.getOrDefault(false)
         }
 
+        /** True while the accessibility service is bound (so its global lock action is available). */
+        fun isConnected(): Boolean = instance != null
+
         /**
          * Locks the screen via the accessibility global action (API 28+). A second, Device-Admin-free
          * lock path so guarding can still lock when admin isn't granted, provided this service is on.

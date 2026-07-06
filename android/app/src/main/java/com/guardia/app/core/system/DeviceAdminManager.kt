@@ -17,6 +17,10 @@ object DeviceAdminManager {
     fun isAdminActive(context: Context): Boolean =
         dpm(context).isAdminActive(component(context))
 
+    /** True if at least one lock mechanism is available: Device Admin or the accessibility service. */
+    fun canLock(context: Context): Boolean =
+        isAdminActive(context) || GuardAccessibilityService.isConnected()
+
     /** Intent that opens the system "activate device admin" screen. */
     fun enableIntent(context: Context): Intent =
         Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).apply {

@@ -351,6 +351,16 @@ class GuardService : LifecycleService() {
         }
     }
 
+    /** A frame that would lock if it recurs — used to trigger an immediate confirming re-check. */
+    private fun isSuspicious(analysis: FacePipeline.Analysis, triggers: RulesEngine.Triggers): Boolean =
+        when (analysis.outcome) {
+            FacePipeline.Outcome.NO_MATCH -> triggers.unknownFace
+            FacePipeline.Outcome.BLOCKED -> triggers.blockedPerson
+            FacePipeline.Outcome.MULTIPLE_FACES -> triggers.multipleFaces
+            FacePipeline.Outcome.NO_FACE -> triggers.noFace
+            else -> false
+        }
+
     private fun onFrame(bitmap: android.graphics.Bitmap, rotation: Int) {
         if (!analyzing.compareAndSet(false, true)) return
         lifecycleScope.launch {
@@ -395,7 +405,15 @@ class GuardService : LifecycleService() {
                         } else null
                         responder.onIntruder(jpeg, analysis, captureIntruders, testMode)
                     }
-                    else -> Unit
+                    else -> {
+                        // Rapid confirm: this frame looked like an intruder but we're still inside the
+                        // grace window (one bad frame won't lock). Instead of waiting a whole cadence
+                        // interval for the confirming frame, re-check almost immediately so a real
+                        // intruder is confirmed and the device locks within ~1s.
+                        if (isSuspicious(analysis, triggers)) {
+                            forceCaptureAt = android.os.SystemClock.elapsedRealtime() + RAPID_CONFIRM_MS
+                        }
+                    }
                 }
                 // Low-light policy. Runs in test mode too (it only brightens — never locks — and
                 // posts preview notifications), so the behavior can be verified safely.
@@ -617,6 +635,9 @@ class GuardService : LifecycleService() {
         /** Throttle for low-light preview notifications in test mode (under the re-check delay so
          *  each escalation step still posts a notification). */
         private const val LOW_LIGHT_TEST_NOTIFY_THROTTLE_MS = 500L
+
+        /** Delay before the confirming re-check after a suspicious frame (rapid intruder confirm). */
+        private const val RAPID_CONFIRM_MS = 550L
 
         /** How often the scheduler checks whether a capture is due (camera stays off meanwhile). */
         private const val POLL_INTERVAL_MS = 350L

@@ -107,6 +107,7 @@ fun DashboardScreen(
     val disclosureAccepted by viewModel.disclosureAccepted.collectAsStateWithLifecycle()
     val protectedNow = state == GuardState.PROTECTED
     val haptics = LocalHapticFeedback.current
+    val context = LocalContext.current
     var showDisclosure by remember { mutableStateOf(false) }
 
     if (showDisclosure) {
@@ -180,7 +181,19 @@ fun DashboardScreen(
         }
         BatteryCard(guarding = protectedNow, responsiveness = responsiveness)
         AppBatteryCard(appActivity)
-        TestModeCard(testMode, viewModel::setTestMode)
+        TestModeCard(
+            enabled = testMode,
+            onChange = viewModel::setTestMode,
+            onTestLock = {
+                if (!viewModel.testDeviceLock()) {
+                    android.widget.Toast.makeText(
+                        context,
+                        "Can't lock yet — enable Device Admin (or the App-detection service) first.",
+                        android.widget.Toast.LENGTH_LONG,
+                    ).show()
+                }
+            },
+        )
         OutlinedButton(
             onClick = onLock,
             modifier = Modifier.fillMaxWidth().height(52.dp),
@@ -482,24 +495,35 @@ private fun batteryLevel(context: Context): Int {
 }
 
 @Composable
-private fun TestModeCard(enabled: Boolean, onChange: (Boolean) -> Unit) {
+private fun TestModeCard(enabled: Boolean, onChange: (Boolean) -> Unit, onTestLock: () -> Unit) {
     GuardiaCard(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(Spacing.lg),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            com.guardia.app.ui.components.IconChip(Icons.Filled.Science, tint = MaterialTheme.colorScheme.tertiary)
-            Spacer(Modifier.width(Spacing.md))
-            Column(modifier = Modifier.weight(1f)) {
-                Text("Test mode", style = MaterialTheme.typography.titleMedium)
-                Text(
-                    "Show recognition results as notifications instead of locking the device.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+        Column(modifier = Modifier.fillMaxWidth().padding(Spacing.lg)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                com.guardia.app.ui.components.IconChip(Icons.Filled.Science, tint = MaterialTheme.colorScheme.tertiary)
+                Spacer(Modifier.width(Spacing.md))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Test mode", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "Show recognition results as notifications instead of locking the device.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Spacer(Modifier.width(Spacing.sm))
+                Switch(checked = enabled, onCheckedChange = onChange)
             }
-            Spacer(Modifier.width(Spacing.sm))
-            Switch(checked = enabled, onCheckedChange = onChange)
+            Spacer(Modifier.height(Spacing.md))
+            OutlinedButton(onClick = onTestLock, modifier = Modifier.fillMaxWidth().height(46.dp)) {
+                Icon(Icons.Filled.Lock, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(Spacing.sm))
+                Text("Test device lock now")
+            }
+            Text(
+                "Locks this device right now so you can confirm locking works on your phone.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = Spacing.xs),
+            )
         }
     }
 }

@@ -32,6 +32,9 @@ class PeopleRepository @Inject constructor(
         negativesCache = null
     }
 
+    /** Public cache-drop for writers that bypass this repository (e.g. backup restore via the DAO). */
+    fun invalidate() = invalidateCaches()
+
     /** True when there are enrolled samples but none from the current pipeline (re-enroll needed). */
     val needsReenroll: Flow<Boolean> = combine(
         dao.observeTotalSampleCount(),

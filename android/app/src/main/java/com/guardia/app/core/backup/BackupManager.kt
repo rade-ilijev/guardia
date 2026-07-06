@@ -2,6 +2,7 @@ package com.guardia.app.core.backup
 
 import android.util.Base64
 import com.guardia.app.data.db.FaceSampleEntity
+import com.guardia.app.data.db.NegativeFaceEntity
 import com.guardia.app.data.db.PersonDao
 import com.guardia.app.data.db.PersonEntity
 import kotlinx.coroutines.Dispatchers
@@ -27,6 +28,7 @@ import javax.inject.Singleton
 @Singleton
 class BackupManager @Inject constructor(
     private val dao: PersonDao,
+    private val people: com.guardia.app.data.PeopleRepository,
 ) {
     private val magic = "GBK1".toByteArray(Charsets.US_ASCII)
 
@@ -38,8 +40,9 @@ class BackupManager @Inject constructor(
     suspend fun export(password: CharArray): ByteArray = withContext(Dispatchers.IO) {
         val people = dao.allPeople()
         val samples = dao.allSamples()
+        val negatives = dao.allNegatives()
         val payload = JSONObject().apply {
-            put("version", 1)
+            put("version", 2)
             put("createdAt", System.currentTimeMillis())
             put("people", JSONArray().apply {
                 people.forEach { p ->
@@ -48,6 +51,9 @@ class BackupManager @Inject constructor(
                         put("name", p.name)
                         put("createdAt", p.createdAt)
                         put("enabled", p.enabled)
+                        // Critical: without this, a block-listed (unauthorized) person restores as an
+                        // authorized owner and would then PASS face checks.
+                        put("blocked", p.blocked)
                     })
                 }
             })
@@ -59,6 +65,20 @@ class BackupManager @Inject constructor(
                         put("embedding", Base64.encodeToString(s.embedding, Base64.NO_WRAP))
                         put("quality", s.quality.toDouble())
                         put("createdAt", s.createdAt)
+                        // Preserve which pipeline produced the embedding, else v2 faces restore as
+                        // legacy v0 and the app wrongly prompts a re-enroll.
+                        put("modelVersion", s.modelVersion)
+                    })
+                }
+            })
+            put("negatives", JSONArray().apply {
+                negatives.forEach { n ->
+                    put(JSONObject().apply {
+                        put("id", n.id)
+                        n.personId?.let { put("personId", it) }
+                        put("embedding", Base64.encodeToString(n.embedding, Base64.NO_WRAP))
+                        put("createdAt", n.createdAt)
+                        put("modelVersion", n.modelVersion)
                     })
                 }
             })
@@ -101,6 +121,7 @@ class BackupManager @Inject constructor(
                             photoPath = null,
                             createdAt = o.optLong("createdAt", System.currentTimeMillis()),
                             enabled = o.optBoolean("enabled", true),
+                            blocked = o.optBoolean("blocked", false),
                         )
                     )
                     peopleCount++
@@ -116,10 +137,32 @@ class BackupManager @Inject constructor(
                             embedding = Base64.decode(o.getString("embedding"), Base64.NO_WRAP),
                             quality = o.optDouble("quality", 1.0).toFloat(),
                             createdAt = o.optLong("createdAt", System.currentTimeMillis()),
+                            modelVersion = o.optInt("modelVersion", 0),
                         )
                     )
                 }
                 if (samples.isNotEmpty()) dao.insertSamples(samples)
+                // Restore declined look-alikes (negatives) so recognition stays as sharp as before.
+                val negArr = json.optJSONArray("negatives")
+                if (negArr != null) {
+                    val negatives = ArrayList<NegativeFaceEntity>(negArr.length())
+                    for (i in 0 until negArr.length()) {
+                        val o = negArr.getJSONObject(i)
+                        negatives.add(
+                            NegativeFaceEntity(
+                                id = o.getString("id"),
+                                personId = if (o.has("personId")) o.getString("personId") else null,
+                                embedding = Base64.decode(o.getString("embedding"), Base64.NO_WRAP),
+                                createdAt = o.optLong("createdAt", System.currentTimeMillis()),
+                                modelVersion = o.optInt("modelVersion", 0),
+                            )
+                        )
+                    }
+                    if (negatives.isNotEmpty()) dao.insertNegatives(negatives)
+                }
+                // We wrote via the DAO directly, so drop the recognizer's in-memory cache or guarding
+                // wouldn't see the restored faces until the next app restart.
+                people.invalidate()
                 ImportResult.Success(peopleCount, samples.size) as ImportResult
             }.getOrElse { e ->
                 val msg = when (e) {

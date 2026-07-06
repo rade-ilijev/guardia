@@ -225,9 +225,20 @@ private fun StepContainer(content: @Composable () -> Unit) {
 @Composable
 private fun WelcomeStep(onShowLegal: (Int) -> Unit = {}) {
     StepContainer {
-        GuardiaLogo(size = 140.dp)
+        // Brand mark lit from within by an ambient glow — the app's first impression.
+        Box(contentAlignment = Alignment.Center) {
+            Box(
+                Modifier.size(220.dp).background(
+                    androidx.compose.ui.graphics.Brush.radialGradient(
+                        listOf(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f), androidx.compose.ui.graphics.Color.Transparent),
+                    ),
+                    androidx.compose.foundation.shape.CircleShape,
+                ),
+            )
+            GuardiaLogo(size = 140.dp)
+        }
         Spacer(Modifier.height(Spacing.lg))
-        Text("Welcome to Guardia", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+        Text("Welcome to Guardia", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
         Spacer(Modifier.height(Spacing.sm))
         Text(
             "On-device AI that locks your phone for anyone but you. Your face and voice never leave this device.",

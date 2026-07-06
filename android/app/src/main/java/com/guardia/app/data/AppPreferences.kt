@@ -11,9 +11,11 @@ import androidx.datastore.preferences.core.stringSetPreferencesKey
 import com.guardia.app.core.security.PinManager
 import com.guardia.app.core.security.PinType
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -249,16 +251,22 @@ class AppPreferences @Inject constructor(
     /**
      * Returns which PIN role the entered code matches, or null if none. Verifies against both the
      * current (PBKDF2) and legacy (SHA-256) stored formats so existing PINs keep working.
+     *
+     * The PBKDF2 comparison (120k iterations) is CPU-heavy and is deliberately run on
+     * [Dispatchers.Default] — callers verify from the UI (viewModelScope = Main), and hashing on the
+     * main thread was janking the PIN pad and the unlock transition.
      */
     suspend fun verifyPin(pin: String): PinType? {
         val prefs = ds.data.first()
         val salt = prefs[KEY_PIN_SALT] ?: return null
-        fun matches(stored: String?) = stored != null && PinManager.verify(pin, salt, stored)
-        return when {
-            matches(prefs[KEY_PIN_REAL]) -> PinType.REAL
-            matches(prefs[KEY_PIN_DECOY]) -> PinType.DECOY
-            matches(prefs[KEY_PIN_PANIC]) -> PinType.PANIC
-            else -> null
+        return withContext(Dispatchers.Default) {
+            fun matches(stored: String?) = stored != null && PinManager.verify(pin, salt, stored)
+            when {
+                matches(prefs[KEY_PIN_REAL]) -> PinType.REAL
+                matches(prefs[KEY_PIN_DECOY]) -> PinType.DECOY
+                matches(prefs[KEY_PIN_PANIC]) -> PinType.PANIC
+                else -> null
+            }
         }
     }
 

@@ -62,6 +62,12 @@ class FaceCheckViewModel @Inject constructor(
     @Volatile private var captureIntruders = true
     @Volatile private var testMode = false
     @Volatile private var lockOnFail = true
+    /** Anti-spoofing: require a detected blink before a face match is accepted. */
+    @Volatile private var requireLiveness = true
+    // Blink liveness accumulators (a printed photo shows open eyes but never a closed frame).
+    @Volatile private var sawEyesOpen = false
+    @Volatile private var sawEyesClosed = false
+    @Volatile private var livePassed = false
     /** True once we've actually seen a face that isn't the owner (vs. just failing to get a look). */
     @Volatile private var sawUnauthorizedFace = false
     /** Consecutive frames showing an unauthorized/extra face — used to fail fast instead of waiting. */
@@ -84,6 +90,7 @@ class FaceCheckViewModel @Inject constructor(
             captureIntruders = prefs.captureIntruders.first()
             testMode = prefs.testMode.first()
             lockOnFail = prefs.appLockOnFail.first()
+            requireLiveness = prefs.requireLiveness.first()
             style = when (prefs.appCheckStyle.first()) {
                 1 -> CheckStyle.BLUR
                 2 -> CheckStyle.FREEZE
@@ -114,8 +121,15 @@ class FaceCheckViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val analysis = facePipeline.analyze(bitmap, rotation, sensitivity)
+                updateLiveness(analysis.eyesOpen)
                 when (analysis.outcome) {
-                    FacePipeline.Outcome.MATCH -> pass()
+                    FacePipeline.Outcome.MATCH ->
+                        if (!requireLiveness || livePassed) {
+                            pass()
+                        } else if (_state.value.message != BLINK_PROMPT) {
+                            // Owner recognized but no blink yet — ask for one (defeats a held-up photo).
+                            _state.value = _state.value.copy(message = BLINK_PROMPT)
+                        }
                     FacePipeline.Outcome.BLOCKED -> fail("Blocked person detected", intruderSeen = true)
                     // A face is visible but it isn't the owner. Remember it (so a timeout still locks)
                     // and, after a short grace for the owner to settle, fail fast rather than leaving
@@ -135,6 +149,14 @@ class FaceCheckViewModel @Inject constructor(
                 processing.set(false)
             }
         }
+    }
+
+    /** Registers a blink once we've seen the eyes clearly open AND clearly closed within the check. */
+    private fun updateLiveness(eyesOpen: Float?) {
+        if (eyesOpen == null || livePassed) return
+        if (eyesOpen < EYES_CLOSED) sawEyesClosed = true
+        if (eyesOpen > EYES_OPEN) sawEyesOpen = true
+        if (sawEyesClosed && sawEyesOpen) livePassed = true
     }
 
     private fun pass() {
@@ -196,6 +218,10 @@ class FaceCheckViewModel @Inject constructor(
 
     companion object {
         private const val DEADLINE_MS = 6000L
+        private const val BLINK_PROMPT = "Blink to confirm it's you"
+        /** Eye-open probability thresholds for the blink liveness check. */
+        private const val EYES_OPEN = 0.6f
+        private const val EYES_CLOSED = 0.35f
         /** Mean frame luminance (0..255) below which we turn on the screen flash. */
         private const val FLASH_TRIGGER_LUMA = 80f
         /** Grace after start before fast-fail can trigger, giving the owner time to be recognized. */

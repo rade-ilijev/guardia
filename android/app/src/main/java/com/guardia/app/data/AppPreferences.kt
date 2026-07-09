@@ -150,6 +150,11 @@ class AppPreferences @Inject constructor(
     val ignoreHairColors: Flow<Set<String>> = ds.data.map { it[KEY_IGNORE_HAIR] ?: emptySet() }
     /** Eye-tone buckets (AppearanceAnalyzer.EyeTone names) the user chose NOT to lock for. */
     val ignoreEyeTones: Flow<Set<String>> = ds.data.map { it[KEY_IGNORE_EYES] ?: emptySet() }
+    /** Sex buckets (AppearanceAnalyzer.Sex names) the user chose NOT to lock for (needs gender model). */
+    val ignoreSexes: Flow<Set<String>> = ds.data.map { it[KEY_IGNORE_SEX] ?: emptySet() }
+
+    /** Require a liveness signal (a blink) before a per-app face check passes — anti-spoofing. */
+    val requireLiveness: Flow<Boolean> = ds.data.map { it[KEY_REQUIRE_LIVENESS] ?: true }
 
     suspend fun setOnboarded(value: Boolean) = ds.edit { it[KEY_ONBOARDED] = value }
     suspend fun setGuardingEnabled(value: Boolean) = ds.edit { it[KEY_GUARDING_ENABLED] = value }
@@ -208,6 +213,8 @@ class AppPreferences @Inject constructor(
     suspend fun setAppearanceRulesEnabled(value: Boolean) = ds.edit { it[KEY_APPEARANCE_RULES] = value }
     suspend fun setIgnoreHairColors(value: Set<String>) = ds.edit { it[KEY_IGNORE_HAIR] = value }
     suspend fun setIgnoreEyeTones(value: Set<String>) = ds.edit { it[KEY_IGNORE_EYES] = value }
+    suspend fun setIgnoreSexes(value: Set<String>) = ds.edit { it[KEY_IGNORE_SEX] = value }
+    suspend fun setRequireLiveness(value: Boolean) = ds.edit { it[KEY_REQUIRE_LIVENESS] = value }
 
     /** Counts a failed device unlock; returns the new consecutive-failure count. */
     suspend fun recordWrongUnlock(): Int {
@@ -335,6 +342,8 @@ class AppPreferences @Inject constructor(
         private val KEY_APPEARANCE_RULES = booleanPreferencesKey("appearance_rules_enabled")
         private val KEY_IGNORE_HAIR = stringSetPreferencesKey("appearance_ignore_hair")
         private val KEY_IGNORE_EYES = stringSetPreferencesKey("appearance_ignore_eyes")
+        private val KEY_IGNORE_SEX = stringSetPreferencesKey("appearance_ignore_sex")
+        private val KEY_REQUIRE_LIVENESS = booleanPreferencesKey("require_liveness")
         private val KEY_PIN_SALT = stringPreferencesKey("pin_salt")
         private val KEY_PIN_REAL = stringPreferencesKey("pin_real")
         private val KEY_PIN_DECOY = stringPreferencesKey("pin_decoy")

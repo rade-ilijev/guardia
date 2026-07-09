@@ -87,6 +87,7 @@ class GuardService : LifecycleService() {
     @Volatile private var appearanceRulesOn = false
     @Volatile private var ignoreHair: Set<String> = emptySet()
     @Volatile private var ignoreEyes: Set<String> = emptySet()
+    @Volatile private var ignoreSex: Set<String> = emptySet()
     private var noFaceStreak = 0
     private var voiceArmed = false
     private var lastRecognitionRecordAt = 0L
@@ -138,6 +139,7 @@ class GuardService : LifecycleService() {
         lifecycleScope.launch { prefs.appearanceRulesEnabled.collectLatest { appearanceRulesOn = it } }
         lifecycleScope.launch { prefs.ignoreHairColors.collectLatest { ignoreHair = it } }
         lifecycleScope.launch { prefs.ignoreEyeTones.collectLatest { ignoreEyes = it } }
+        lifecycleScope.launch { prefs.ignoreSexes.collectLatest { ignoreSex = it } }
         lifecycleScope.launch { prefs.responsiveness.collectLatest { userResponsiveness = it; applyAll() } }
         lifecycleScope.launch { prefs.intervalCheckEnabled.collectLatest { userIntervalEnabled = it; applyAll() } }
         lifecycleScope.launch { prefs.customIntervalSeconds.collectLatest { customInterval = it; applyAll() } }
@@ -362,7 +364,11 @@ class GuardService : LifecycleService() {
 
     /** True when a confident appearance estimate matches a bucket the user chose not to lock for. */
     private fun appearanceIgnored(look: com.guardia.app.core.ml.AppearanceAnalyzer.Appearance?): Boolean {
-        if (look == null || look.confidence < com.guardia.app.core.ml.AppearanceAnalyzer.MIN_ACTIONABLE_CONFIDENCE) return false
+        if (look == null) return false
+        // Sex comes from a dedicated classifier that only reports a confident value, so honor it
+        // regardless of the coarse hair/eye confidence.
+        if (look.sex != com.guardia.app.core.ml.AppearanceAnalyzer.Sex.UNKNOWN && ignoreSex.contains(look.sex.name)) return true
+        if (look.confidence < com.guardia.app.core.ml.AppearanceAnalyzer.MIN_ACTIONABLE_CONFIDENCE) return false
         return ignoreHair.contains(look.hair.name) || ignoreEyes.contains(look.eyes.name)
     }
 

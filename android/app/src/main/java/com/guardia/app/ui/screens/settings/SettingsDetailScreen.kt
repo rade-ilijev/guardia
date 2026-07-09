@@ -593,6 +593,8 @@ private fun AppearanceRules(viewModel: SettingsViewModel) {
     val enabled by viewModel.appearanceRulesEnabled.collectAsStateWithLifecycle()
     val hair by viewModel.ignoreHairColors.collectAsStateWithLifecycle()
     val eyes by viewModel.ignoreEyeTones.collectAsStateWithLifecycle()
+    val sexes by viewModel.ignoreSexes.collectAsStateWithLifecycle()
+    val chipGap = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)
 
     SettingsGroup(title = "Appearance rules") {
         SwitchRow(
@@ -604,7 +606,7 @@ private fun AppearanceRules(viewModel: SettingsViewModel) {
     }
     if (enabled) {
         InfoBanner(
-            "Appearance (hair/eye tone) is estimated on-device from the camera and can be wrong, especially in poor light. This only relaxes locking — your block list and multi-face detection still always lock. Sex and other attributes are intentionally not used: they can't be estimated reliably or fairly from pixels.",
+            "Appearance is estimated on-device from the camera and can be wrong, especially in poor light. This only relaxes locking — your block list and multi-face detection still always lock. Keep it off for maximum protection.",
             Icons.Filled.Info,
             tone = BannerTone.Warning,
         )
@@ -612,7 +614,7 @@ private fun AppearanceRules(viewModel: SettingsViewModel) {
             Column(Modifier.fillMaxWidth().padding(16.dp)) {
                 Text("Don't lock for hair color", style = MaterialTheme.typography.titleSmall)
                 Spacer(Modifier.height(8.dp))
-                FlowRow(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
+                FlowRow(horizontalArrangement = chipGap) {
                     listOf("DARK" to "Dark", "BROWN" to "Brown", "BLONDE" to "Blonde", "RED" to "Red", "GRAY" to "Gray")
                         .forEach { (key, label) ->
                             FilterChip(selected = key in hair, onClick = { viewModel.toggleIgnoreHair(key) }, label = { Text(label) })
@@ -621,10 +623,32 @@ private fun AppearanceRules(viewModel: SettingsViewModel) {
                 Spacer(Modifier.height(16.dp))
                 Text("Don't lock for eye tone", style = MaterialTheme.typography.titleSmall)
                 Spacer(Modifier.height(8.dp))
-                FlowRow(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
+                FlowRow(horizontalArrangement = chipGap) {
                     listOf("DARK" to "Dark eyes", "LIGHT" to "Light eyes").forEach { (key, label) ->
                         FilterChip(selected = key in eyes, onClick = { viewModel.toggleIgnoreEye(key) }, label = { Text(label) })
                     }
+                }
+                Spacer(Modifier.height(16.dp))
+                Text("Don't lock for sex", style = MaterialTheme.typography.titleSmall)
+                Spacer(Modifier.height(4.dp))
+                if (viewModel.genderModelAvailable) {
+                    Text(
+                        "Estimated by an on-device model. Sensitive and imperfect — it can misclassify people.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    FlowRow(horizontalArrangement = chipGap) {
+                        listOf("MALE" to "Male", "FEMALE" to "Female").forEach { (key, label) ->
+                            FilterChip(selected = key in sexes, onClick = { viewModel.toggleIgnoreSex(key) }, label = { Text(label) })
+                        }
+                    }
+                } else {
+                    Text(
+                        "Requires an on-device gender model. Add assets/gender.tflite to enable this option.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
         }
@@ -1315,6 +1339,7 @@ private fun AppCheckSection(viewModel: AppCheckViewModel = hiltViewModel()) {
     val apps by viewModel.apps.collectAsStateWithLifecycle()
     val checkStyle by viewModel.checkStyle.collectAsStateWithLifecycle()
     val lockOnFail by viewModel.lockOnFail.collectAsStateWithLifecycle()
+    val requireLiveness by viewModel.requireLiveness.collectAsStateWithLifecycle()
     val accessibilityOn = remember {
         val flat = android.provider.Settings.Secure.getString(
             context.contentResolver,
@@ -1377,6 +1402,15 @@ private fun AppCheckSection(viewModel: AppCheckViewModel = hiltViewModel()) {
             )
             if (index < styles.lastIndex) RowDivider()
         }
+    }
+
+    SettingsGroup(title = "Anti-spoofing") {
+        SwitchRow(
+            title = "Require a blink",
+            subtitle = "Ask for a blink before a face check passes, so a held-up photo of you can't unlock a guarded app.",
+            checked = requireLiveness,
+            onCheckedChange = viewModel::setRequireLiveness,
+        )
     }
 
     SettingsGroup(title = "If it isn't you") {

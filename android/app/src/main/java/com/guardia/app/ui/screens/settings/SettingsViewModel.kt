@@ -25,8 +25,12 @@ class SettingsViewModel @Inject constructor(
     private val events: EventsRepository,
     private val intruders: IntruderRepository,
     private val people: PeopleRepository,
+    private val genderClassifier: com.guardia.app.core.ml.GenderClassifier,
     entitlements: com.guardia.app.core.billing.EntitlementManager,
 ) : ViewModel() {
+
+    /** Whether a gender model is bundled so the (optional) sex appearance rule can do anything. */
+    val genderModelAvailable: Boolean get() = genderClassifier.isAvailable
 
     val premium: StateFlow<Boolean> = entitlements.premium
     val responsiveness: StateFlow<Int> = prefs.responsiveness
@@ -78,8 +82,14 @@ class SettingsViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
     val ignoreEyeTones: StateFlow<Set<String>> = prefs.ignoreEyeTones
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
+    val ignoreSexes: StateFlow<Set<String>> = prefs.ignoreSexes
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
 
     fun setAppearanceRulesEnabled(value: Boolean) = viewModelScope.launch { prefs.setAppearanceRulesEnabled(value) }
+    fun toggleIgnoreSex(name: String) = viewModelScope.launch {
+        val cur = prefs.ignoreSexes.first()
+        prefs.setIgnoreSexes(if (name in cur) cur - name else cur + name)
+    }
     fun toggleIgnoreHair(name: String) = viewModelScope.launch {
         val cur = prefs.ignoreHairColors.first()
         prefs.setIgnoreHairColors(if (name in cur) cur - name else cur + name)

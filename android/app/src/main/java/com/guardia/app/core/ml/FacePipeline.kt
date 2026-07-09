@@ -22,6 +22,10 @@ interface FacePipeline {
         val reason: InconclusiveReason? = null,
         /** Coarse on-device appearance estimate for an unrecognized/blocked face (else null). */
         val appearance: AppearanceAnalyzer.Appearance? = null,
+        /** Liveness signals from the primary detected face (for the per-app blink challenge). */
+        val eyesOpen: Float? = null,
+        val headYaw: Float? = null,
+        val headPitch: Float? = null,
     )
 
     /** Analyzes a captured frame. [rotationDegrees] is applied before detection. */

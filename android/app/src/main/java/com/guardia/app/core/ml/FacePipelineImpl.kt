@@ -11,6 +11,7 @@ class FacePipelineImpl @Inject constructor(
     private val recognizer: FaceRecognizer,
     private val people: com.guardia.app.data.PeopleRepository,
     private val appearance: AppearanceAnalyzer,
+    private val gender: GenderClassifier,
 ) : FacePipeline {
 
     override suspend fun analyze(bitmap: Bitmap, rotationDegrees: Int, sensitivity: Float): FacePipeline.Analysis {
@@ -59,9 +60,21 @@ class FacePipelineImpl @Inject constructor(
         // Estimate coarse appearance only for a non-owner face (drives evidence labels and the
         // optional appearance rules). Skipped for the owner to save per-frame work.
         val look = if (outcome == FacePipeline.Outcome.NO_MATCH || outcome == FacePipeline.Outcome.BLOCKED) {
-            runCatching { appearance.analyze(upright, face) }.getOrNull()
+            runCatching { appearance.analyze(upright, face) }.getOrNull()?.let { a ->
+                if (gender.isAvailable) a.copy(sex = runCatching { gender.classify(crop) }.getOrDefault(a.sex)) else a
+            }
         } else null
-        return FacePipeline.Analysis(outcome, match.similarity, match.personName, match.personId, appearance = look)
+        // Liveness signals from the primary face (used by the per-app blink challenge).
+        val eyesOpen = ((face.leftEyeOpenProbability ?: -1f) + (face.rightEyeOpenProbability ?: -1f)).let {
+            if (it < 0f) null else it / 2f
+        }
+        return FacePipeline.Analysis(
+            outcome, match.similarity, match.personName, match.personId,
+            appearance = look,
+            eyesOpen = eyesOpen,
+            headYaw = face.headEulerAngleY,
+            headPitch = face.headEulerAngleX,
+        )
     }
 
     private companion object {

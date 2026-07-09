@@ -31,12 +31,19 @@ class AppCheckViewModel @Inject constructor(
     val lockOnFail: StateFlow<Boolean> = prefs.appLockOnFail
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
 
+    val requireLiveness: StateFlow<Boolean> = prefs.requireLiveness
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
     fun setCheckStyle(style: Int) {
         viewModelScope.launch { prefs.setAppCheckStyle(style) }
     }
 
     fun setLockOnFail(value: Boolean) {
         viewModelScope.launch { prefs.setAppLockOnFail(value) }
+    }
+
+    fun setRequireLiveness(value: Boolean) {
+        viewModelScope.launch { prefs.setRequireLiveness(value) }
     }
 
     val apps = MutableStateFlow<List<InstalledApp>>(emptyList())

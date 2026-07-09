@@ -24,15 +24,23 @@ class AppearanceAnalyzer @Inject constructor() {
 
     enum class HairColor { DARK, BROWN, BLONDE, RED, GRAY, UNKNOWN }
     enum class EyeTone { DARK, LIGHT, UNKNOWN }
+    enum class Sex { MALE, FEMALE, UNKNOWN }
 
     data class Appearance(
         val hair: HairColor,
         val eyes: EyeTone,
         val confidence: Float,
+        /** Set only when a gender model is installed and confident (see GenderClassifier). */
+        val sex: Sex = Sex.UNKNOWN,
     ) {
-        /** Human-readable summary for evidence labels, e.g. "Dark hair · light eyes". Null if unknown. */
+        /** Human-readable summary for evidence labels, e.g. "Male · Dark hair · light eyes". Null if unknown. */
         fun summary(): String? {
             val parts = buildList {
+                when (sex) {
+                    Sex.MALE -> add("male")
+                    Sex.FEMALE -> add("female")
+                    Sex.UNKNOWN -> {}
+                }
                 when (hair) {
                     HairColor.DARK -> add("dark hair")
                     HairColor.BROWN -> add("brown hair")

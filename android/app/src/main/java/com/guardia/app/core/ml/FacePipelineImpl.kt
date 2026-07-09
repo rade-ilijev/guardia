@@ -10,6 +10,7 @@ class FacePipelineImpl @Inject constructor(
     private val embedder: FaceEmbedder,
     private val recognizer: FaceRecognizer,
     private val people: com.guardia.app.data.PeopleRepository,
+    private val appearance: AppearanceAnalyzer,
 ) : FacePipeline {
 
     override suspend fun analyze(bitmap: Bitmap, rotationDegrees: Int, sensitivity: Float): FacePipeline.Analysis {
@@ -55,7 +56,12 @@ class FacePipelineImpl @Inject constructor(
             match.matched -> FacePipeline.Outcome.MATCH
             else -> FacePipeline.Outcome.NO_MATCH
         }
-        return FacePipeline.Analysis(outcome, match.similarity, match.personName, match.personId)
+        // Estimate coarse appearance only for a non-owner face (drives evidence labels and the
+        // optional appearance rules). Skipped for the owner to save per-frame work.
+        val look = if (outcome == FacePipeline.Outcome.NO_MATCH || outcome == FacePipeline.Outcome.BLOCKED) {
+            runCatching { appearance.analyze(upright, face) }.getOrNull()
+        } else null
+        return FacePipeline.Analysis(outcome, match.similarity, match.personName, match.personId, appearance = look)
     }
 
     private companion object {

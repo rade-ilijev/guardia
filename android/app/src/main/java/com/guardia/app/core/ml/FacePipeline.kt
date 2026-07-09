@@ -20,6 +20,8 @@ interface FacePipeline {
         val personName: String?,
         val personId: String? = null,
         val reason: InconclusiveReason? = null,
+        /** Coarse on-device appearance estimate for an unrecognized/blocked face (else null). */
+        val appearance: AppearanceAnalyzer.Appearance? = null,
     )
 
     /** Analyzes a captured frame. [rotationDegrees] is applied before detection. */

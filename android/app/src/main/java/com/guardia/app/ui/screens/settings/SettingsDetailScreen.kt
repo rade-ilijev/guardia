@@ -40,8 +40,10 @@ import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.WorkspacePremium
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -557,6 +559,8 @@ private fun ResponseSection(viewModel: SettingsViewModel) {
             tone = BannerTone.Warning,
         )
     }
+    AppearanceRules(viewModel)
+
     SettingsGroup(title = "Evidence") {
         SwitchRow(
             "Capture intruders",
@@ -579,6 +583,50 @@ private fun ResponseSection(viewModel: SettingsViewModel) {
                 min = 1,
                 max = 5,
             )
+        }
+    }
+}
+
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun AppearanceRules(viewModel: SettingsViewModel) {
+    val enabled by viewModel.appearanceRulesEnabled.collectAsStateWithLifecycle()
+    val hair by viewModel.ignoreHairColors.collectAsStateWithLifecycle()
+    val eyes by viewModel.ignoreEyeTones.collectAsStateWithLifecycle()
+
+    SettingsGroup(title = "Appearance rules") {
+        SwitchRow(
+            "Relax by appearance",
+            enabled,
+            viewModel::setAppearanceRulesEnabled,
+            subtitle = "Experimental. Skip locking for an unrecognized person whose estimated look matches what you choose below.",
+        )
+    }
+    if (enabled) {
+        InfoBanner(
+            "Appearance (hair/eye tone) is estimated on-device from the camera and can be wrong, especially in poor light. This only relaxes locking — your block list and multi-face detection still always lock. Sex and other attributes are intentionally not used: they can't be estimated reliably or fairly from pixels.",
+            Icons.Filled.Info,
+            tone = BannerTone.Warning,
+        )
+        com.guardia.app.ui.components.GuardiaCard(modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.fillMaxWidth().padding(16.dp)) {
+                Text("Don't lock for hair color", style = MaterialTheme.typography.titleSmall)
+                Spacer(Modifier.height(8.dp))
+                FlowRow(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
+                    listOf("DARK" to "Dark", "BROWN" to "Brown", "BLONDE" to "Blonde", "RED" to "Red", "GRAY" to "Gray")
+                        .forEach { (key, label) ->
+                            FilterChip(selected = key in hair, onClick = { viewModel.toggleIgnoreHair(key) }, label = { Text(label) })
+                        }
+                }
+                Spacer(Modifier.height(16.dp))
+                Text("Don't lock for eye tone", style = MaterialTheme.typography.titleSmall)
+                Spacer(Modifier.height(8.dp))
+                FlowRow(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
+                    listOf("DARK" to "Dark eyes", "LIGHT" to "Light eyes").forEach { (key, label) ->
+                        FilterChip(selected = key in eyes, onClick = { viewModel.toggleIgnoreEye(key) }, label = { Text(label) })
+                    }
+                }
+            }
         }
     }
 }

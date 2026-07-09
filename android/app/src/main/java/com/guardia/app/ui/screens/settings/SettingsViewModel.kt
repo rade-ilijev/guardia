@@ -12,6 +12,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -69,6 +70,24 @@ class SettingsViewModel @Inject constructor(
     fun setCrashLogEnabled(value: Boolean) = viewModelScope.launch { prefs.setCrashLogEnabled(value) }
     fun readCrashLog(): String = com.guardia.app.core.system.CrashLogger.read(context)
     fun clearCrashLog() = com.guardia.app.core.system.CrashLogger.clear(context)
+
+    // --- Appearance rules (experimental) ---
+    val appearanceRulesEnabled: StateFlow<Boolean> = prefs.appearanceRulesEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+    val ignoreHairColors: StateFlow<Set<String>> = prefs.ignoreHairColors
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
+    val ignoreEyeTones: StateFlow<Set<String>> = prefs.ignoreEyeTones
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
+
+    fun setAppearanceRulesEnabled(value: Boolean) = viewModelScope.launch { prefs.setAppearanceRulesEnabled(value) }
+    fun toggleIgnoreHair(name: String) = viewModelScope.launch {
+        val cur = prefs.ignoreHairColors.first()
+        prefs.setIgnoreHairColors(if (name in cur) cur - name else cur + name)
+    }
+    fun toggleIgnoreEye(name: String) = viewModelScope.launch {
+        val cur = prefs.ignoreEyeTones.first()
+        prefs.setIgnoreEyeTones(if (name in cur) cur - name else cur + name)
+    }
 
     fun setResponsiveness(level: Int) = viewModelScope.launch { prefs.setResponsiveness(level) }
     fun setIntervalCheckEnabled(value: Boolean) = viewModelScope.launch { prefs.setIntervalCheckEnabled(value) }

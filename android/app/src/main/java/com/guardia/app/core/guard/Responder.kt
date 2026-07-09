@@ -45,13 +45,16 @@ class Responder @Inject constructor(
         val blocked = analysis.outcome == FacePipeline.Outcome.BLOCKED
         val lowLight = analysis.outcome == FacePipeline.Outcome.INCONCLUSIVE
         val type = if (multiple || blocked) GuardEvent.Type.INTRUDER_LOCK else GuardEvent.Type.UNKNOWN_FACE
+        val look = analysis.appearance?.summary()
         val what = when {
             blocked -> "Blocked person detected${analysis.personName?.let { ": $it" } ?: ""}"
             multiple -> "Multiple faces detected"
             noFace -> "No face visible"
             lowLight -> "Too dark to verify"
-            else -> "Unrecognized face detected"
+            else -> "Unrecognized face detected" + (look?.let { " ($it)" } ?: "")
         }
+        // Fold the appearance estimate into the saved selfie's label so it shows on the capture.
+        val captureLabel = "Guarding" + (look?.let { " · $it" } ?: "")
 
         if (testMode) {
             // Test mode never locks — it saves the selfie (if enabled) and posts a preview so the
@@ -75,7 +78,7 @@ class Responder @Inject constructor(
         //    only controls whether the selfie itself is saved.
         ioScope.launch {
             val photoPath = if (captureEnabled && jpegBytes != null) {
-                runCatching { intruders.saveCapture(jpegBytes, "Guarding") }
+                runCatching { intruders.saveCapture(jpegBytes, captureLabel) }
                     .onFailure { Log.w(TAG, "intruder capture failed", it) }
                     .getOrNull()
             } else null

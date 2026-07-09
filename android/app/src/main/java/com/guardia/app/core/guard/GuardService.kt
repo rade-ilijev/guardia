@@ -81,6 +81,12 @@ class GuardService : LifecycleService() {
     @Volatile private var lockOnBlocked = true
     @Volatile private var lockOnMultiple = true
     @Volatile private var userLockOnNoFace = false
+
+    // Appearance rules (experimental): suppress a lock for an unrecognized person whose estimated
+    // look matches a user-selected bucket. Never applied to blocked/multi outcomes.
+    @Volatile private var appearanceRulesOn = false
+    @Volatile private var ignoreHair: Set<String> = emptySet()
+    @Volatile private var ignoreEyes: Set<String> = emptySet()
     private var noFaceStreak = 0
     private var voiceArmed = false
     private var lastRecognitionRecordAt = 0L
@@ -129,6 +135,9 @@ class GuardService : LifecycleService() {
         lifecycleScope.launch { prefs.lockOnBlockedPerson.collectLatest { lockOnBlocked = it } }
         lifecycleScope.launch { prefs.lockOnMultipleFaces.collectLatest { lockOnMultiple = it } }
         lifecycleScope.launch { prefs.lockOnNoFace.collectLatest { userLockOnNoFace = it; applyAll() } }
+        lifecycleScope.launch { prefs.appearanceRulesEnabled.collectLatest { appearanceRulesOn = it } }
+        lifecycleScope.launch { prefs.ignoreHairColors.collectLatest { ignoreHair = it } }
+        lifecycleScope.launch { prefs.ignoreEyeTones.collectLatest { ignoreEyes = it } }
         lifecycleScope.launch { prefs.responsiveness.collectLatest { userResponsiveness = it; applyAll() } }
         lifecycleScope.launch { prefs.intervalCheckEnabled.collectLatest { userIntervalEnabled = it; applyAll() } }
         lifecycleScope.launch { prefs.customIntervalSeconds.collectLatest { customInterval = it; applyAll() } }
@@ -351,6 +360,12 @@ class GuardService : LifecycleService() {
         }
     }
 
+    /** True when a confident appearance estimate matches a bucket the user chose not to lock for. */
+    private fun appearanceIgnored(look: com.guardia.app.core.ml.AppearanceAnalyzer.Appearance?): Boolean {
+        if (look == null || look.confidence < com.guardia.app.core.ml.AppearanceAnalyzer.MIN_ACTIONABLE_CONFIDENCE) return false
+        return ignoreHair.contains(look.hair.name) || ignoreEyes.contains(look.eyes.name)
+    }
+
     /** A frame that would lock if it recurs — used to trigger an immediate confirming re-check. */
     private fun isSuspicious(analysis: FacePipeline.Analysis, triggers: RulesEngine.Triggers): Boolean =
         when (analysis.outcome) {
@@ -394,7 +409,16 @@ class GuardService : LifecycleService() {
                     multipleFaces = lockOnMultiple,
                     noFace = effectiveLockOnNoFace(),
                 )
-                when (rulesEngine.onAnalysis(analysis, triggers)) {
+                // Optional appearance relax: for an *unrecognized* face (never blocked/multi) whose
+                // confident appearance estimate matches a bucket the user chose to ignore, treat the
+                // frame as "can't decide" so it won't lock. Block list and multi-face always win.
+                val effective = if (appearanceRulesOn && analysis.outcome == FacePipeline.Outcome.NO_MATCH &&
+                    appearanceIgnored(analysis.appearance)
+                ) {
+                    if (testMode) TestNotifier.showFaceResult(this@GuardService, "Appearance rule", "Would not lock (matches an ignored look)")
+                    analysis.copy(outcome = FacePipeline.Outcome.INCONCLUSIVE, reason = FacePipeline.InconclusiveReason.FACE_UNCLEAR)
+                } else analysis
+                when (rulesEngine.onAnalysis(effective, triggers)) {
                     RulesEngine.Decision.LOCK -> {
                         // Save the upright (rotation-applied) frame so the stored selfie isn't sideways.
                         // Encoding is best-effort: a failure here must never prevent the lock, so we
@@ -410,7 +434,7 @@ class GuardService : LifecycleService() {
                         // grace window (one bad frame won't lock). Instead of waiting a whole cadence
                         // interval for the confirming frame, re-check almost immediately so a real
                         // intruder is confirmed and the device locks within ~1s.
-                        if (isSuspicious(analysis, triggers)) {
+                        if (isSuspicious(effective, triggers)) {
                             forceCaptureAt = android.os.SystemClock.elapsedRealtime() + RAPID_CONFIRM_MS
                         }
                     }

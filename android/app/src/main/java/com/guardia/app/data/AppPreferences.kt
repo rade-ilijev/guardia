@@ -144,6 +144,13 @@ class AppPreferences @Inject constructor(
     /** Opt-in local crash log (written to app-private storage only, never uploaded). */
     val crashLogEnabled: Flow<Boolean> = ds.data.map { it[KEY_CRASH_LOG] ?: false }
 
+    // --- Appearance rules (experimental): don't lock for a stranger whose estimated look matches. ---
+    val appearanceRulesEnabled: Flow<Boolean> = ds.data.map { it[KEY_APPEARANCE_RULES] ?: false }
+    /** Hair-colour buckets (AppearanceAnalyzer.HairColor names) the user chose NOT to lock for. */
+    val ignoreHairColors: Flow<Set<String>> = ds.data.map { it[KEY_IGNORE_HAIR] ?: emptySet() }
+    /** Eye-tone buckets (AppearanceAnalyzer.EyeTone names) the user chose NOT to lock for. */
+    val ignoreEyeTones: Flow<Set<String>> = ds.data.map { it[KEY_IGNORE_EYES] ?: emptySet() }
+
     suspend fun setOnboarded(value: Boolean) = ds.edit { it[KEY_ONBOARDED] = value }
     suspend fun setGuardingEnabled(value: Boolean) = ds.edit { it[KEY_GUARDING_ENABLED] = value }
     suspend fun setInterval(min: Int) = ds.edit { it[KEY_INTERVAL] = min }
@@ -197,6 +204,10 @@ class AppPreferences @Inject constructor(
     suspend fun setGuardDisclosureAccepted(value: Boolean) = ds.edit { it[KEY_GUARD_DISCLOSURE] = value }
     suspend fun setWrongUnlockThreshold(value: Int) = ds.edit { it[KEY_WRONG_UNLOCK_THRESHOLD] = value }
     suspend fun setCrashLogEnabled(value: Boolean) = ds.edit { it[KEY_CRASH_LOG] = value }
+
+    suspend fun setAppearanceRulesEnabled(value: Boolean) = ds.edit { it[KEY_APPEARANCE_RULES] = value }
+    suspend fun setIgnoreHairColors(value: Set<String>) = ds.edit { it[KEY_IGNORE_HAIR] = value }
+    suspend fun setIgnoreEyeTones(value: Set<String>) = ds.edit { it[KEY_IGNORE_EYES] = value }
 
     /** Counts a failed device unlock; returns the new consecutive-failure count. */
     suspend fun recordWrongUnlock(): Int {
@@ -321,6 +332,9 @@ class AppPreferences @Inject constructor(
         private val KEY_WRONG_UNLOCK_THRESHOLD = intPreferencesKey("wrong_unlock_threshold")
         private val KEY_WRONG_UNLOCK_COUNT = intPreferencesKey("wrong_unlock_count")
         private val KEY_CRASH_LOG = booleanPreferencesKey("crash_log_enabled")
+        private val KEY_APPEARANCE_RULES = booleanPreferencesKey("appearance_rules_enabled")
+        private val KEY_IGNORE_HAIR = stringSetPreferencesKey("appearance_ignore_hair")
+        private val KEY_IGNORE_EYES = stringSetPreferencesKey("appearance_ignore_eyes")
         private val KEY_PIN_SALT = stringPreferencesKey("pin_salt")
         private val KEY_PIN_REAL = stringPreferencesKey("pin_real")
         private val KEY_PIN_DECOY = stringPreferencesKey("pin_decoy")

@@ -73,7 +73,11 @@ class CaptureGate @Inject constructor(
 
     fun setFirstCheckOnUnlock(value: Boolean) { firstCheckOnUnlock = value }
 
-    fun setShakeEnabled(value: Boolean) { shakeEnabled = value }
+    fun setShakeEnabled(value: Boolean) {
+        if (shakeEnabled == value) return
+        shakeEnabled = value
+        syncSensor()
+    }
 
     /** [gapsSeconds] are the delays between consecutive early checks after unlock. */
     fun setRamp(gapsSeconds: List<Int>) {
@@ -92,6 +96,7 @@ class CaptureGate @Inject constructor(
         val now = System.currentTimeMillis()
         sessionStartAt = now
         rampIndex = 0
+        screenOn = true
         if (firstCheckOnUnlock) {
             immediatePending = true
             lastCaptureAt = 0L
@@ -99,6 +104,7 @@ class CaptureGate @Inject constructor(
             // No first check: wait a full cadence before the first steady check.
             lastCaptureAt = now
         }
+        syncSensor()
     }
 
     /** Called when the screen turns off / device locks: ends the session so the ramp re-arms. */
@@ -106,14 +112,43 @@ class CaptureGate @Inject constructor(
         sessionStartAt = 0L
         rampIndex = 0
         immediatePending = false
+        screenOn = false
+        // Shake-to-check is meaningless while locked, and a UI-rate accelerometer is a real drain —
+        // drop the listener until the screen comes back.
+        syncSensor()
     }
 
     fun start() {
-        accelerometer?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_UI) }
+        started = true
+        syncSensor()
     }
 
     fun stop() {
-        sensorManager.unregisterListener(this)
+        started = false
+        syncSensor()
+    }
+
+    /** True while guarding is running. */
+    @Volatile private var started = false
+    /** True while the screen is on (shake only matters then). */
+    @Volatile private var screenOn = true
+    /** Whether the accelerometer listener is currently registered (avoid redundant register calls). */
+    @Volatile private var sensorRegistered = false
+
+    /**
+     * Registers the accelerometer only when it can actually do something — guarding on, shake enabled,
+     * and the screen on — and drops it otherwise. Avoids a continuous UI-rate sensor listener running
+     * 24/7 for a feature most users don't turn on.
+     */
+    private fun syncSensor() {
+        val want = started && shakeEnabled && screenOn && accelerometer != null
+        if (want == sensorRegistered) return
+        if (want) {
+            sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_UI)
+        } else {
+            sensorManager.unregisterListener(this)
+        }
+        sensorRegistered = want
     }
 
     fun shouldCapture(): Boolean {

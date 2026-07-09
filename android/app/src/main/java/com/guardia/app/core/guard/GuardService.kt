@@ -111,12 +111,17 @@ class GuardService : LifecycleService() {
     /** Whether the current foreground type already includes the location subtype. */
     @Volatile private var fgsHasLocation = false
 
+    /** Drives the poll loop's cadence: while the screen is off we can never capture, so idle slowly. */
+    @Volatile private var screenInteractive = true
+
     /** Reacts to lock/unlock so the premium unlock ramp can re-arm each session. */
     private val screenReceiver = object : android.content.BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             when (intent?.action) {
-                Intent.ACTION_USER_PRESENT -> captureGate.onUnlocked()
+                Intent.ACTION_SCREEN_ON -> screenInteractive = true
+                Intent.ACTION_USER_PRESENT -> { screenInteractive = true; captureGate.onUnlocked() }
                 Intent.ACTION_SCREEN_OFF -> {
+                    screenInteractive = false
                     captureGate.onScreenOff()
                     appTriggerManager.onScreenOff()
                 }
@@ -154,6 +159,7 @@ class GuardService : LifecycleService() {
             this,
             screenReceiver,
             android.content.IntentFilter().apply {
+                addAction(Intent.ACTION_SCREEN_ON)
                 addAction(Intent.ACTION_USER_PRESENT)
                 addAction(Intent.ACTION_SCREEN_OFF)
             },
@@ -286,7 +292,10 @@ class GuardService : LifecycleService() {
 
         captureJob = lifecycleScope.launch {
             while (isActive) {
-                delay(POLL_INTERVAL_MS)
+                // While the screen is off we can't capture (CaptureGate requires interactive +
+                // unlocked), so poll slowly to avoid needless wakeups/binder calls; poll responsively
+                // once the screen is on so first-check-on-unlock and ramps stay snappy.
+                delay(if (screenInteractive) POLL_INTERVAL_MS else IDLE_POLL_INTERVAL_MS)
                 // A low-light re-check can request an immediate capture (just after we brighten the
                 // screen) instead of waiting for the next scheduled interval.
                 val forced = forceCaptureAt in 1..android.os.SystemClock.elapsedRealtime()
@@ -671,6 +680,8 @@ class GuardService : LifecycleService() {
 
         /** How often the scheduler checks whether a capture is due (camera stays off meanwhile). */
         private const val POLL_INTERVAL_MS = 350L
+        /** Slow poll while the screen is off — we can't capture then, so barely tick to save battery. */
+        private const val IDLE_POLL_INTERVAL_MS = 3000L
         /** Frames discarded after opening the camera so auto-exposure can settle. */
         private const val WARMUP_FRAMES = 2
         /** Max time to keep the camera open waiting for a usable frame before releasing it. */

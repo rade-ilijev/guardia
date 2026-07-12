@@ -1,0 +1,3 @@
+# For export_gender_tflite.py
+tensorflow>=2.13,<2.17
+numpy>=1.23

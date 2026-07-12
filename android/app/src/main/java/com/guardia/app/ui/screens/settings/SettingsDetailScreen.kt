@@ -645,7 +645,7 @@ private fun AppearanceRules(viewModel: SettingsViewModel) {
                     }
                 } else {
                     Text(
-                        "Requires an on-device gender model. Add assets/gender.tflite to enable this option.",
+                        "Requires an on-device gender model, which isn't bundled (ready-made ones are trained on non-commercial datasets). See tools/gender_model to build a shippable gender.tflite from a permissively-licensed model.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

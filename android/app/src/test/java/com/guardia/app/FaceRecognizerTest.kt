@@ -44,6 +44,7 @@ class FaceRecognizerTest {
         override fun observePerson(personId: String): Flow<PersonWithCount?> =
             flowOf(people.firstOrNull { it.id == personId }?.let { PersonWithCount(it, 0) })
         override suspend fun updateName(personId: String, name: String) {}
+        override suspend fun setGender(personId: String, gender: String?) {}
         override suspend fun recordRecognition(personId: String, ts: Long, confidence: Double) {}
         override suspend fun setEnabled(personId: String, enabled: Boolean) {
             val idx = people.indexOfFirst { it.id == personId }

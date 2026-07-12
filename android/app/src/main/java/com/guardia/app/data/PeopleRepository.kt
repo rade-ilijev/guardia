@@ -56,6 +56,7 @@ class PeopleRepository @Inject constructor(
             (person.confidenceSum / person.recognitionCount).toFloat() else 0f,
         enabled = person.enabled,
         blocked = person.blocked,
+        gender = person.gender,
     )
 
     /** Creates a person with optional face embeddings. Returns the new id. */
@@ -64,6 +65,7 @@ class PeopleRepository @Inject constructor(
         photoPath: String?,
         embeddings: List<FloatArray> = emptyList(),
         blocked: Boolean = false,
+        gender: String? = null,
     ): String {
         val id = UUID.randomUUID().toString()
         dao.insertPerson(
@@ -73,11 +75,17 @@ class PeopleRepository @Inject constructor(
                 photoPath = photoPath,
                 createdAt = System.currentTimeMillis(),
                 blocked = blocked,
+                gender = gender,
             )
         )
         if (embeddings.isNotEmpty()) addSamples(id, embeddings)
         invalidateCaches()
         return id
+    }
+
+    suspend fun setGender(id: String, gender: String?) {
+        dao.setGender(id, gender)
+        invalidateCaches()
     }
 
     suspend fun addSamples(personId: String, embeddings: List<FloatArray>, quality: Float = 1f) {

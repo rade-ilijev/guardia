@@ -28,10 +28,16 @@ class EntitlementManager @Inject constructor(
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    private val _premium = MutableStateFlow(BuildConfig.DEBUG)
-    val premium: StateFlow<Boolean> = _premium.asStateFlow()
+    // TESTING PHASE: every premium feature is unlocked for all users so we can exercise the full app
+    // (and ship an open build to Play testing tracks). To re-enable paid gating later, set this to
+    // false and the flow below falls back to the cached Play entitlement (`_premium`).
+    private val allFeaturesUnlocked = true
 
-    val isPremium: Boolean get() = _premium.value
+    private val _premium = MutableStateFlow(BuildConfig.DEBUG)
+    val premium: StateFlow<Boolean> =
+        if (allFeaturesUnlocked) MutableStateFlow(true).asStateFlow() else _premium.asStateFlow()
+
+    val isPremium: Boolean get() = allFeaturesUnlocked || _premium.value
 
     init {
         scope.launch {

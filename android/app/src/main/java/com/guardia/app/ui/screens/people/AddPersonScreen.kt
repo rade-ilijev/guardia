@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.border
@@ -71,6 +72,7 @@ fun AddPersonScreen(
     }
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { hasCamera = it }
     var name by remember { mutableStateOf("") }
+    var gender by remember { mutableStateOf<String?>(null) }
     val addingSamples = personId != null
 
     GuardiaScaffold(
@@ -92,7 +94,7 @@ fun AddPersonScreen(
 
                             EnrollPhase.VERIFIED -> {
                                 Button(
-                                    onClick = { viewModel.save(name, personId, onDone) },
+                                    onClick = { viewModel.save(name, gender, personId, onDone) },
                                     modifier = Modifier.fillMaxWidth().height(56.dp),
                                 ) { Text(if (addingSamples) "Save samples" else "Save person") }
                                 OutlinedButton(onClick = viewModel::retry, modifier = Modifier.fillMaxWidth()) {
@@ -144,6 +146,22 @@ fun AddPersonScreen(
                     enabled = ui.phase == EnrollPhase.READY,
                     modifier = Modifier.fillMaxWidth(),
                 )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("Gender", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.width(Spacing.sm))
+                    listOf("MALE" to "Male", "FEMALE" to "Female").forEach { (key, label) ->
+                        androidx.compose.material3.FilterChip(
+                            selected = gender == key,
+                            onClick = { gender = if (gender == key) null else key },
+                            label = { Text(label) },
+                            enabled = ui.phase == EnrollPhase.READY,
+                        )
+                    }
+                }
             }
 
             val ringColor = when (ui.phase) {

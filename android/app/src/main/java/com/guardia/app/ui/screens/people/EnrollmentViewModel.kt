@@ -202,11 +202,11 @@ class EnrollmentViewModel @Inject constructor(
         }
     }
 
-    fun save(name: String, existingPersonId: String?, onDone: () -> Unit) {
+    fun save(name: String, gender: String?, existingPersonId: String?, onDone: () -> Unit) {
         if (_ui.value.phase != EnrollPhase.VERIFIED || embeddings.isEmpty()) return
         viewModelScope.launch {
             val targetId = existingPersonId
-                ?: people.addPerson(name = name, photoPath = photoPath, embeddings = emptyList())
+                ?: people.addPerson(name = name, photoPath = photoPath, embeddings = emptyList(), gender = gender)
             embeddings.forEachIndexed { i, e -> people.addSample(targetId, e, photos.getOrNull(i)) }
             if (existingPersonId != null) {
                 events.log(GuardEvent.Type.ENROLLMENT, "Added ${embeddings.size} samples")

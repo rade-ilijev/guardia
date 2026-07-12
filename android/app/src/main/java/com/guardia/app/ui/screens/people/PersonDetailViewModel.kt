@@ -43,6 +43,10 @@ class PersonDetailViewModel @Inject constructor(
         viewModelScope.launch { repository.setBlocked(personId, blocked) }
     }
 
+    fun setGender(gender: String?) {
+        viewModelScope.launch { repository.setGender(personId, gender) }
+    }
+
     fun delete(onDone: () -> Unit) {
         viewModelScope.launch {
             repository.remove(personId)

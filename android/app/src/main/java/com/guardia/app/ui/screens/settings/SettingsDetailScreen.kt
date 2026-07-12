@@ -631,24 +631,19 @@ private fun AppearanceRules(viewModel: SettingsViewModel) {
                 Spacer(Modifier.height(16.dp))
                 Text("Don't lock for sex", style = MaterialTheme.typography.titleSmall)
                 Spacer(Modifier.height(4.dp))
-                if (viewModel.genderModelAvailable) {
-                    Text(
-                        "Estimated by an on-device model. Sensitive and imperfect — it can misclassify people.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    FlowRow(horizontalArrangement = chipGap) {
-                        listOf("MALE" to "Male", "FEMALE" to "Female").forEach { (key, label) ->
-                            FilterChip(selected = key in sexes, onClick = { viewModel.toggleIgnoreSex(key) }, label = { Text(label) })
-                        }
+                Text(
+                    if (viewModel.genderModelAvailable)
+                        "Estimated by an on-device model. Sensitive and imperfect — it can misclassify people."
+                    else
+                        "This takes effect once an on-device gender model is installed (see tools/gender_model). Until then the rule stays inactive.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(8.dp))
+                FlowRow(horizontalArrangement = chipGap) {
+                    listOf("MALE" to "Male", "FEMALE" to "Female").forEach { (key, label) ->
+                        FilterChip(selected = key in sexes, onClick = { viewModel.toggleIgnoreSex(key) }, label = { Text(label) })
                     }
-                } else {
-                    Text(
-                        "Requires an on-device gender model, which isn't bundled (ready-made ones are trained on non-commercial datasets). See tools/gender_model to build a shippable gender.tflite from a permissively-licensed model.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
                 }
             }
         }

@@ -59,6 +59,9 @@ interface PersonDao {
     @Query("UPDATE people SET name = :name WHERE id = :personId")
     suspend fun updateName(personId: String, name: String)
 
+    @Query("UPDATE people SET gender = :gender WHERE id = :personId")
+    suspend fun setGender(personId: String, gender: String?)
+
     @Query(
         "UPDATE people SET lastSeenAt = :ts, recognitionCount = recognitionCount + 1, " +
             "confidenceSum = confidenceSum + :confidence WHERE id = :personId"

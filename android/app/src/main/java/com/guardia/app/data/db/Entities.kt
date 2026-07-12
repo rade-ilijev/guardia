@@ -21,6 +21,8 @@ data class PersonEntity(
     val enabled: Boolean = true,
     /** When true, this is a known *unauthorized* person (block list): matching them locks the device. */
     val blocked: Boolean = false,
+    /** Optional self-declared sex captured at enrollment ("MALE"/"FEMALE"), or null if unspecified. */
+    val gender: String? = null,
 )
 
 @Entity(

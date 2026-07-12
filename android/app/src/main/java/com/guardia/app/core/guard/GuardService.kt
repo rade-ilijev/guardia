@@ -485,8 +485,16 @@ class GuardService : LifecycleService() {
         bitmap: android.graphics.Bitmap,
         rotation: Int,
     ) {
-        val lowLight = analysis.outcome == FacePipeline.Outcome.INCONCLUSIVE &&
-            analysis.reason == FacePipeline.InconclusiveReason.LOW_LIGHT
+        // Two dark cases both need brightening:
+        //  - a face was found but its crop is too dark to trust (INCONCLUSIVE / LOW_LIGHT), and
+        //  - it's so dark that ML Kit couldn't find a face at all (NO_FACE on a dark frame). The
+        //    latter is what happens in a genuinely dark room — previously we never brightened then,
+        //    so the face was never lit up and re-validated.
+        val darkNoFace = analysis.outcome == FacePipeline.Outcome.NO_FACE &&
+            lowLightAction != LOW_LIGHT_IGNORE &&
+            BitmapUtils.averageLuminance(bitmap) < DARK_FRAME_LUMA
+        val lowLight = (analysis.outcome == FacePipeline.Outcome.INCONCLUSIVE &&
+            analysis.reason == FacePipeline.InconclusiveReason.LOW_LIGHT) || darkNoFace
         val now = android.os.SystemClock.elapsedRealtime()
 
         if (!lowLight) {
@@ -659,6 +667,8 @@ class GuardService : LifecycleService() {
         private const val LOW_LIGHT_IGNORE = 0
         private const val LOW_LIGHT_BRIGHTEN = 1
         private const val LOW_LIGHT_LOCK = 2
+        /** Whole-frame mean luminance (0..255) below which a NO_FACE frame is treated as "too dark". */
+        private const val DARK_FRAME_LUMA = 40f
         // Low-light escalation phases.
         private const val PHASE_NONE = 0
         private const val PHASE_BRIGHTEN = 1

@@ -14,6 +14,8 @@ data class Person(
     val enabled: Boolean = true,
     /** True for known unauthorized people (block list): matching them always locks the device. */
     val blocked: Boolean = false,
+    /** Self-declared sex captured at enrollment ("MALE"/"FEMALE"), or null if unspecified. */
+    val gender: String? = null,
 )
 
 /** A single enrolled face sample, with the optional cropped image it was trained from. */

@@ -175,6 +175,23 @@ fun PersonDetailScreen(
                 }
             }
 
+            SectionHeader("Gender")
+            com.guardia.app.ui.components.GuardiaCard(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(Spacing.lg),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    listOf("MALE" to "Male", "FEMALE" to "Female").forEach { (key, label) ->
+                        androidx.compose.material3.FilterChip(
+                            selected = person?.gender == key,
+                            onClick = { viewModel.setGender(if (person?.gender == key) null else key) },
+                            label = { Text(label) },
+                        )
+                    }
+                }
+            }
+
             SectionHeader("Recognition quality")
             QualityCard(sampleCount = person?.sampleCount ?: 0)
 

@@ -71,6 +71,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.error
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
@@ -582,6 +583,13 @@ fun ShInput(
     placeholder: String? = null,
     enabled: Boolean = true,
     isError: Boolean = false,
+    /**
+     * What is wrong, for a screen reader. [isError] on its own is a red border and nothing else —
+     * a user who cannot see the border is told nothing at all, and WCAG 1.4.1 asks that colour
+     * never be the only carrier of meaning. Falls back to a generic phrase so a caller that only
+     * sets [isError] still announces *something*.
+     */
+    errorMessage: String? = null,
     singleLine: Boolean = true,
     minHeight: Dp = 40.dp,
     leadingIcon: ImageVector? = null,
@@ -618,6 +626,13 @@ fun ShInput(
             .clip(shape)
             .background(if (enabled) Color.Transparent else c.muted)
             .border(BorderStroke(borderWidth, borderColor), shape)
+            .then(
+                if (isError) {
+                    Modifier.semantics { error(errorMessage ?: "Invalid entry") }
+                } else {
+                    Modifier
+                },
+            )
             .padding(horizontal = Spacing.md, vertical = Spacing.sm)
             .alpha(if (enabled) 1f else 0.6f),
         verticalAlignment = Alignment.CenterVertically,

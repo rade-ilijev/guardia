@@ -338,6 +338,7 @@ private fun RecoveryDialog(
                             },
                             placeholder = stringResource(R.string.recovery_code_placeholder),
                             isError = message != null,
+                            errorMessage = message,
                             textStyle = MonoCaption.copy(fontSize = 16.sp, letterSpacing = 1.sp),
                         )
                     }
@@ -374,6 +375,7 @@ private fun RecoveryDialog(
                             placeholder = stringResource(R.string.recovery_backup_password),
                             enabled = !busy,
                             isError = message != null,
+                            errorMessage = message,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                             visualTransformation = PasswordVisualTransformation(),
                         )
@@ -396,6 +398,7 @@ private fun RecoveryDialog(
                             onValueChange = { if (it.length <= 6 && it.all(Char::isDigit)) { confirmPin = it; message = null } },
                             placeholder = stringResource(R.string.recovery_confirm_pin),
                             isError = message != null,
+                            errorMessage = message,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
                             visualTransformation = PasswordVisualTransformation(),
                         )

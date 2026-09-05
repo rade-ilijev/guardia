@@ -29,6 +29,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import com.guardia.app.ui.theme.Guardia
 import com.guardia.app.ui.theme.GuardiaMono
@@ -43,7 +50,19 @@ import com.guardia.app.ui.theme.GuardiaMono
 @Composable
 fun PinDots(length: Int, max: Int = 6, modifier: Modifier = Modifier) {
     val c = Guardia.colors
-    Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+    Row(
+        // Six identical dots tell a screen-reader user nothing, and without them there is no way to
+        // know whether a key press registered — the difference between using the lock screen and
+        // guessing at it. Announced as a count and never as digits: the PIN itself must not be
+        // spoken aloud, and a device that is being unlocked is by definition in someone's hand and
+        // possibly not the owner's.
+        modifier = modifier.semantics(mergeDescendants = true) {
+            contentDescription = "PIN"
+            liveRegion = LiveRegionMode.Polite
+            stateDescription = "$length of $max digits entered"
+        },
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
         repeat(max) { index ->
             val filled = index < length
             val scale by animateFloatAsState(
@@ -84,7 +103,8 @@ fun PinPad(
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-            Spacer(Modifier.size(72.dp))
+            // The empty bottom-left slot is layout, not a control.
+            Spacer(Modifier.size(72.dp).clearAndSetSemantics { })
             KeypadKey(label = "0", enabled = enabled) { tap(); onDigit(0) }
             KeypadKey(enabled = enabled, onClick = { tap(); onBackspace() }) {
                 Icon(
@@ -139,7 +159,13 @@ private fun KeypadKey(enabled: Boolean, onClick: () -> Unit, content: @Composabl
             .clip(CircleShape)
             .background(fill)
             .border(BorderStroke(1.dp, borderColor), CircleShape)
-            .clickable(interactionSource = interaction, indication = null, enabled = enabled, onClick = onClick),
+            .clickable(
+                interactionSource = interaction,
+                indication = null,
+                enabled = enabled,
+                role = Role.Button,
+                onClick = onClick,
+            ),
         contentAlignment = Alignment.Center,
     ) { content() }
 }

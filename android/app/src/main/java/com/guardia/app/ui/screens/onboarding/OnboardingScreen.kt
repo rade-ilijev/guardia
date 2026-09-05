@@ -431,6 +431,7 @@ private fun RestoreBackupDialog(viewModel: OnboardingViewModel, onDismiss: () ->
                         placeholder = "Backup password",
                         enabled = !busy,
                         isError = message != null,
+                        errorMessage = message,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                         visualTransformation = PasswordVisualTransformation(),
                     )

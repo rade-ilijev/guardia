@@ -24,8 +24,20 @@ class SecurityAuditor @Inject constructor(
 
     enum class Risk { HIGH, MEDIUM, LOW }
 
+    /**
+     * What kind of capability this is, independent of how it is worded.
+     *
+     * The UI picks an icon from this rather than from [Capability.label]: the label is the user's
+     * wording, it is translated, and matching a picture to a translated sentence breaks the moment
+     * anyone edits a string.
+     */
+    enum class CapabilityKind {
+        SCREEN, NOTIFICATIONS, DEVICE_ADMIN, MICROPHONE, CAMERA, SMS_READ, SMS_SEND,
+        CALL_LOG, LOCATION, OVERLAY, CONTACTS, CALENDAR, APP_LIST, INSTALL_APPS,
+    }
+
     /** One sensitive capability an app currently holds, in the user's words. */
-    data class Capability(val label: String, val high: Boolean)
+    data class Capability(val label: String, val high: Boolean, val kind: CapabilityKind)
 
     /**
      * Marked `@Immutable` for Compose: it holds a `List`, and Compose treats every `List` as unstable
@@ -84,27 +96,27 @@ class SecurityAuditor @Inject constructor(
         val granted = grantedPermissions(pm, pkg)
         val caps = mutableListOf<Capability>()
 
-        fun cap(label: String, high: Boolean, condition: Boolean) {
-            if (condition) caps.add(Capability(label, high))
+        fun cap(label: String, high: Boolean, kind: CapabilityKind, condition: Boolean) {
+            if (condition) caps.add(Capability(label, high, kind))
         }
 
         val hasInternet = granted.contains(Manifest.permission.INTERNET) ||
             requestsPermission(pm, pkg, Manifest.permission.INTERNET)
 
-        cap("Can see your screen", high = true, pkg in accessibility)
-        cap("Can read your notifications", high = true, pkg in notifListeners)
-        cap("Can lock or wipe this device", high = true, pkg in admins)
-        cap("Can record audio", high = true, granted.contains(Manifest.permission.RECORD_AUDIO))
-        cap("Can use the camera", high = true, granted.contains(Manifest.permission.CAMERA))
-        cap("Can read your texts", high = true, granted.contains(Manifest.permission.READ_SMS))
-        cap("Can send texts", high = true, granted.contains(Manifest.permission.SEND_SMS))
-        cap("Can read call logs", high = true, granted.contains(Manifest.permission.READ_CALL_LOG))
-        cap("Knows your precise location", high = true, granted.contains(Manifest.permission.ACCESS_FINE_LOCATION))
-        cap("Can draw over other apps", high = true, granted.contains(Manifest.permission.SYSTEM_ALERT_WINDOW))
-        cap("Can read your contacts", high = false, granted.contains(Manifest.permission.READ_CONTACTS))
-        cap("Can read your calendar", high = false, granted.contains(Manifest.permission.READ_CALENDAR))
-        cap("Sees every app you install", high = false, requestsPermission(pm, pkg, "android.permission.QUERY_ALL_PACKAGES"))
-        cap("Can install other apps", high = false, requestsPermission(pm, pkg, Manifest.permission.REQUEST_INSTALL_PACKAGES))
+        cap("Can see your screen", high = true, CapabilityKind.SCREEN, pkg in accessibility)
+        cap("Can read your notifications", high = true, CapabilityKind.NOTIFICATIONS, pkg in notifListeners)
+        cap("Can lock or wipe this device", high = true, CapabilityKind.DEVICE_ADMIN, pkg in admins)
+        cap("Can record audio", high = true, CapabilityKind.MICROPHONE, granted.contains(Manifest.permission.RECORD_AUDIO))
+        cap("Can use the camera", high = true, CapabilityKind.CAMERA, granted.contains(Manifest.permission.CAMERA))
+        cap("Can read your texts", high = true, CapabilityKind.SMS_READ, granted.contains(Manifest.permission.READ_SMS))
+        cap("Can send texts", high = true, CapabilityKind.SMS_SEND, granted.contains(Manifest.permission.SEND_SMS))
+        cap("Can read call logs", high = true, CapabilityKind.CALL_LOG, granted.contains(Manifest.permission.READ_CALL_LOG))
+        cap("Knows your precise location", high = true, CapabilityKind.LOCATION, granted.contains(Manifest.permission.ACCESS_FINE_LOCATION))
+        cap("Can draw over other apps", high = true, CapabilityKind.OVERLAY, granted.contains(Manifest.permission.SYSTEM_ALERT_WINDOW))
+        cap("Can read your contacts", high = false, CapabilityKind.CONTACTS, granted.contains(Manifest.permission.READ_CONTACTS))
+        cap("Can read your calendar", high = false, CapabilityKind.CALENDAR, granted.contains(Manifest.permission.READ_CALENDAR))
+        cap("Sees every app you install", high = false, CapabilityKind.APP_LIST, requestsPermission(pm, pkg, "android.permission.QUERY_ALL_PACKAGES"))
+        cap("Can install other apps", high = false, CapabilityKind.INSTALL_APPS, requestsPermission(pm, pkg, Manifest.permission.REQUEST_INSTALL_PACKAGES))
 
         var score: Int = caps.fold(0) { acc, cap -> acc + if (cap.high) 10 else 3 }
         // The exfiltration multiplier: a sensitive capability plus internet is what turns "an app

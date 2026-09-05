@@ -57,6 +57,12 @@ class DashboardViewModel @Inject constructor(
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
+    /** Apps behind a PIN gate, and apps that demand a face check on open. */
+    val lockedApps: StateFlow<Set<String>> = prefs.lockedApps
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
+    val triggerApps: StateFlow<Set<String>> = prefs.triggerApps
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
+
     val guardState: StateFlow<GuardState> = GuardController.state
 
     /**

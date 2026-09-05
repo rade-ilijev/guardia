@@ -67,6 +67,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.guardia.app.R
 import com.guardia.app.core.system.DeviceAdminManager
+import com.guardia.app.ui.components.AppIcon
 import com.guardia.app.ui.components.BannerTone
 import com.guardia.app.ui.components.Button
 import com.guardia.app.ui.components.FilterChip
@@ -2002,24 +2003,6 @@ private fun AppToggleRow(app: InstalledApp, checked: Boolean, onCheckedChange: (
     }
 }
 
-@Composable
-private fun AppIcon(packageName: String, modifier: Modifier = Modifier) {
-    val context = LocalContext.current
-    val icon by produceState<ImageBitmap?>(null, packageName) {
-        value = withContext(Dispatchers.IO) {
-            runCatching {
-                context.packageManager.getApplicationIcon(packageName).toBitmap(96, 96).asImageBitmap()
-            }.getOrNull()
-        }
-    }
-    val shape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp)
-    val bmp = icon
-    if (bmp != null) {
-        Image(bitmap = bmp, contentDescription = null, modifier = modifier.clip(shape))
-    } else {
-        Box(modifier.clip(shape).background(MaterialTheme.colorScheme.surfaceVariant))
-    }
-}
 
 @Composable
 private fun ProfilesSection(onUpgrade: () -> Unit = {}, viewModel: ProfilesViewModel = hiltViewModel()) {

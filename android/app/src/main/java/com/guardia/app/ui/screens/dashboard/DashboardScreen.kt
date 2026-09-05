@@ -46,6 +46,7 @@ import androidx.compose.material.icons.filled.GppMaybe
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PauseCircle
 import androidx.compose.material.icons.filled.PrivacyTip
+import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Science
@@ -74,6 +75,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
@@ -97,6 +99,7 @@ import com.guardia.app.ui.components.ButtonVariant
 import com.guardia.app.ui.components.ShAlert
 import com.guardia.app.ui.components.ShBadge
 import com.guardia.app.ui.components.ShButton
+import com.guardia.app.ui.components.AppIcon
 import com.guardia.app.ui.components.ShCard
 import com.guardia.app.ui.components.ShIconBox
 import com.guardia.app.ui.components.ShProgress
@@ -134,6 +137,7 @@ fun DashboardScreen(
     onOpenActivity: () -> Unit = {},
     onOpenPins: () -> Unit = {},
     onOpenSecurity: () -> Unit = {},
+    onOpenAppLock: () -> Unit = {},
     viewModel: DashboardViewModel = hiltViewModel(),
 ) {
     val state by viewModel.guardState.collectAsStateWithLifecycle()
@@ -152,6 +156,8 @@ fun DashboardScreen(
     val integrityWarning by viewModel.integrityWarning.collectAsStateWithLifecycle()
     val needsRecoveryCode by viewModel.needsRecoveryCode.collectAsStateWithLifecycle()
     val accessibilityRevoked by viewModel.accessibilityRevoked.collectAsStateWithLifecycle()
+    val lockedApps by viewModel.lockedApps.collectAsStateWithLifecycle()
+    val triggerApps by viewModel.triggerApps.collectAsStateWithLifecycle()
 
     // NEEDS_ATTENTION is a *running* guard with something missing, so the hero still reads as on
     // and the button still offers to stop it. What changes is the label and colour, which
@@ -380,6 +386,14 @@ fun DashboardScreen(
             item(key = "security-facts") {
                 SecurityFactsRow(
                     onOpenSecurity = onOpenSecurity,
+                    modifier = Modifier.animateEntrance(5, arriving()),
+                )
+            }
+            item(key = "protected-apps") {
+                ProtectedAppsCard(
+                    lockedApps = lockedApps,
+                    triggerApps = triggerApps,
+                    onOpenAppLock = onOpenAppLock,
                     modifier = Modifier.animateEntrance(5, arriving()),
                 )
             }
@@ -976,6 +990,111 @@ private fun SeverityPill(
         Text("$passed/${group.size}", style = MonoCaption, color = hue, maxLines = 1)
     }
 }
+
+/**
+ * What Guardia is actually holding shut.
+ *
+ * The rest of the home page is about the state of the device; this is the one card about the work
+ * the app is doing on it. Two mechanisms sit behind it — a PIN gate on open, and a face check on
+ * open — and the same app can carry both, so the headline is the count of distinct apps covered
+ * rather than the sum, which would quietly double-count and overstate the protection.
+ *
+ * The icons are the point. "7 apps" is a number; the row of marks is the user recognising their
+ * bank, their messages and their photos at a glance and knowing the list is the right one.
+ */
+@Composable
+private fun ProtectedAppsCard(
+    lockedApps: Set<String>,
+    triggerApps: Set<String>,
+    onOpenAppLock: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val c = Guardia.colors
+    val covered = remember(lockedApps, triggerApps) { lockedApps + triggerApps }
+    val summary = if (covered.isEmpty()) {
+        "No apps protected yet. Pick the ones worth locking."
+    } else {
+        "${covered.size} apps protected. ${lockedApps.size} behind a PIN, " +
+            "${triggerApps.size} behind a face check."
+    }
+
+    ShCard(modifier = modifier.fillMaxWidth(), onClick = onOpenAppLock) {
+        Column(Modifier.fillMaxWidth().padding(Spacing.card)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.semantics(mergeDescendants = true) { contentDescription = summary },
+            ) {
+                ShIconBox(
+                    icon = if (covered.isEmpty()) Icons.Filled.LockOpen else Icons.Filled.Lock,
+                    tint = if (covered.isEmpty()) c.mutedForeground else c.brand,
+                    size = 34.dp,
+                )
+                Spacer(Modifier.width(Spacing.md))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        "Protected apps",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = c.foreground,
+                    )
+                    Text(
+                        if (covered.isEmpty()) {
+                            "Nothing locked yet"
+                        } else {
+                            "${lockedApps.size} PIN · ${triggerApps.size} face check"
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = c.mutedForeground,
+                    )
+                }
+                Spacer(Modifier.width(Spacing.sm))
+                Text(
+                    "${animatedCount(covered.size)}",
+                    style = com.guardia.app.ui.theme.DataDisplay,
+                    color = if (covered.isEmpty()) c.mutedForeground else c.brand,
+                )
+                Icon(
+                    Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = c.mutedForeground,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+
+            if (covered.isNotEmpty()) {
+                Spacer(Modifier.height(Spacing.lg))
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                    verticalAlignment = Alignment.CenterVertically,
+                    // Decorative in full: the count above already says it, and reading eight
+                    // package names aloud is not a summary of anything.
+                    modifier = Modifier.clearAndSetSemantics { },
+                ) {
+                    covered.take(MAX_SHOWN_APP_ICONS).forEach { pkg ->
+                        AppIcon(pkg, Modifier.size(32.dp))
+                    }
+                    if (covered.size > MAX_SHOWN_APP_ICONS) {
+                        Box(
+                            Modifier
+                                .size(32.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(c.muted),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                "+${covered.size - MAX_SHOWN_APP_ICONS}",
+                                style = MonoCaption,
+                                color = c.mutedForeground,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Enough to recognise the set, few enough to fit a narrow phone without wrapping. */
+private const val MAX_SHOWN_APP_ICONS = 6
 
 /**
  * Two facts about the device that a pass/fail check flattens away.

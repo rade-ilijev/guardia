@@ -19,6 +19,20 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.Message
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.AdminPanelSettings
+import androidx.compose.material.icons.filled.Apps
+import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.Contacts
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Layers
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.ScreenshotMonitor
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -29,11 +43,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.guardia.app.core.security.SecurityAuditor
+import com.guardia.app.ui.components.AppIcon
 import com.guardia.app.ui.components.CircularProgressIndicator
 import com.guardia.app.ui.components.EmptyState
 import com.guardia.app.ui.components.GuardiaCard
@@ -126,6 +142,10 @@ private fun AppCard(app: SecurityAuditor.AppAudit, onClick: () -> Unit) {
     GuardiaCard(modifier = Modifier.fillMaxWidth(), onClick = onClick) {
         Column(Modifier.fillMaxWidth().padding(Spacing.lg)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
+                // The app's own icon is the fastest way to recognise a row: a user knows their
+                // banking app by its mark long before they finish reading its name.
+                AppIcon(app.packageName, Modifier.size(40.dp))
+                Spacer(Modifier.width(Spacing.md))
                 Column(Modifier.weight(1f)) {
                     Text(app.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, maxLines = 1)
                     Text(
@@ -170,12 +190,43 @@ private fun RiskPill(label: String, accent: Color) {
 @Composable
 private fun CapabilityChip(cap: SecurityAuditor.Capability) {
     val tint = if (cap.high) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
-    Box(
+    Row(
         modifier = Modifier
             .clip(RoundedCornerShape(10.dp))
             .background(tint.copy(alpha = 0.10f))
             .padding(horizontal = 10.dp, vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
+        Icon(
+            imageVector = capabilityIcon(cap.kind),
+            // The label beside it already says this; the glyph is what makes a wall of chips
+            // scannable, not a second thing to read out.
+            contentDescription = null,
+            tint = tint,
+            modifier = Modifier.size(13.dp),
+        )
+        Spacer(Modifier.width(6.dp))
         Text(cap.label, style = MaterialTheme.typography.labelMedium, color = tint)
     }
+}
+
+/**
+ * A glyph per capability kind, keyed on the enum rather than the label so translating a string
+ * never silently changes a picture.
+ */
+private fun capabilityIcon(kind: SecurityAuditor.CapabilityKind): ImageVector = when (kind) {
+    SecurityAuditor.CapabilityKind.SCREEN -> Icons.Filled.ScreenshotMonitor
+    SecurityAuditor.CapabilityKind.NOTIFICATIONS -> Icons.Filled.Notifications
+    SecurityAuditor.CapabilityKind.DEVICE_ADMIN -> Icons.Filled.AdminPanelSettings
+    SecurityAuditor.CapabilityKind.MICROPHONE -> Icons.Filled.Mic
+    SecurityAuditor.CapabilityKind.CAMERA -> Icons.Filled.PhotoCamera
+    SecurityAuditor.CapabilityKind.SMS_READ -> Icons.AutoMirrored.Filled.Message
+    SecurityAuditor.CapabilityKind.SMS_SEND -> Icons.AutoMirrored.Filled.Send
+    SecurityAuditor.CapabilityKind.CALL_LOG -> Icons.Filled.Call
+    SecurityAuditor.CapabilityKind.LOCATION -> Icons.Filled.LocationOn
+    SecurityAuditor.CapabilityKind.OVERLAY -> Icons.Filled.Layers
+    SecurityAuditor.CapabilityKind.CONTACTS -> Icons.Filled.Contacts
+    SecurityAuditor.CapabilityKind.CALENDAR -> Icons.Filled.CalendarMonth
+    SecurityAuditor.CapabilityKind.APP_LIST -> Icons.Filled.Apps
+    SecurityAuditor.CapabilityKind.INSTALL_APPS -> Icons.Filled.Download
 }

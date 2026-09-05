@@ -10,17 +10,32 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /** Supplies short "current value" labels shown on the right of each settings row. */
 @HiltViewModel
 class SettingsOverviewViewModel @Inject constructor(
-    prefs: AppPreferences,
+    private val prefs: AppPreferences,
     people: PeopleRepository,
     entitlements: EntitlementManager,
 ) : ViewModel() {
 
     val premium: StateFlow<Boolean> = entitlements.premium
+
+    // Quick controls: the two most-toggled settings, operable right from the overview.
+    val testMode: StateFlow<Boolean> =
+        prefs.testMode.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+    val captureIntruders: StateFlow<Boolean> =
+        prefs.captureIntruders.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
+    fun setTestMode(value: Boolean) {
+        viewModelScope.launch { prefs.setTestMode(value) }
+    }
+
+    fun setCaptureIntruders(value: Boolean) {
+        viewModelScope.launch { prefs.setCaptureIntruders(value) }
+    }
 
     private val guardingLabel = combine(
         prefs.responsiveness,
@@ -40,18 +55,16 @@ class SettingsOverviewViewModel @Inject constructor(
     }
 
     private val otherLabels = combine(
-        prefs.voiceListeningMode,
         prefs.lockedApps,
         prefs.triggerApps,
-    ) { voiceMode, lockedApps, triggerApps ->
+        prefs.sensitivity,
+        prefs.emailAlertsEnabled,
+    ) { lockedApps, triggerApps, sensitivity, emailAlerts ->
         buildMap {
             put("appcheck", if (triggerApps.isEmpty()) "Off" else "${triggerApps.size} apps")
             put("applock", if (lockedApps.isEmpty()) "Off" else "${lockedApps.size} apps")
-            put("voice", when (voiceMode) {
-                1 -> "On"
-                2 -> "Fallback"
-                else -> "Off"
-            })
+            put("detection", "${(sensitivity * 100).toInt()}%")
+            put("alerts", if (emailAlerts) "On" else "Off")
         }
     }
 

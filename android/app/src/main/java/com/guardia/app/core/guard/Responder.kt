@@ -24,6 +24,7 @@ class Responder @Inject constructor(
     private val intruders: IntruderRepository,
     private val events: EventsRepository,
     private val alerts: AlertsManager,
+    private val prefs: com.guardia.app.data.AppPreferences,
 ) {
     /**
      * Evidence/alert I/O runs here — an application-scoped IO scope that is deliberately NOT tied to
@@ -82,6 +83,12 @@ class Responder @Inject constructor(
                     .onFailure { Log.w(TAG, "intruder capture failed", it) }
                     .getOrNull()
             } else null
+            // An UNKNOWN-face lock might be the owner on a bad day (glasses, lighting). Flag it so
+            // the dashboard can ask "was that you?" and learn from the mistake. Never for blocked
+            // or multi-face locks — those are definitive.
+            if (analysis.outcome == FacePipeline.Outcome.NO_MATCH && photoPath != null) {
+                runCatching { prefs.setPendingFalseLock(System.currentTimeMillis(), photoPath) }
+            }
             runCatching { events.log(type, "$what - locked", photoPath) }
             runCatching { alerts.onSecurityEvent("$what and device locked.", jpegBytes) }
         }

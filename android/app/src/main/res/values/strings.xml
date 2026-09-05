@@ -26,4 +26,62 @@
     <string name="legal_developer_name" translatable="false">Rade Ilijev</string>
     <string name="legal_contact_email" translatable="false">radeilijev1@gmail.com</string>
     <string name="legal_updated_date" translatable="false">July 5, 2026</string>
+    <!-- Home-screen widget -->
+    <string name="widget_description">Protection status, with one tap to arm Guardia.</string>
+    <string name="widget_status_protected">Protected</string>
+    <string name="widget_status_off">Not guarding</string>
+    <string name="widget_action_start">Tap to start guarding</string>
+    <string name="widget_action_stop">Tap to stop \u2014 asks for your PIN</string>
+    <!-- Guard notification action -->
+    <string name="guard_notif_stop">Stop guarding</string>
+
+    <!--
+        Lock screen and PIN recovery.
+
+        This screen is the localization template for the rest of the app - see LOCALIZATION.md.
+        Note the two shapes that are easy to get wrong and are done properly here:
+
+        * `lock_subtitle_attempts_left` is a plural, not a string with an "s" glued on. English has
+          two forms; Polish has four and Arabic six, and no amount of string concatenation gets
+          those right.
+        * Positional arguments (%1$s, %1$d) rather than bare %s, so a translator can reorder them
+          when their language puts the number somewhere else in the sentence.
+    -->
+    <string name="lock_status_secured">SECURED</string>
+    <string name="lock_status_denied">ACCESS DENIED</string>
+    <string name="lock_status_locked_out">LOCKED OUT</string>
+    <string name="lock_subtitle_enter_pin">Enter your PIN to unlock Guardia</string>
+    <string name="lock_subtitle_incorrect">Incorrect PIN, try again</string>
+    <string name="lock_subtitle_lockout">Too many attempts. Try again in %1$ds</string>
+    <plurals name="lock_subtitle_attempts_left">
+        <item quantity="one">Incorrect PIN - %1$d attempt left</item>
+        <item quantity="other">Incorrect PIN - %1$d attempts left</item>
+    </plurals>
+    <string name="lock_forgot_pin">Forgot your PIN?</string>
+
+    <string name="recovery_title_choose">Get back into Guardia</string>
+    <string name="recovery_title_code">Enter your recovery code</string>
+    <string name="recovery_title_backup">Unlock with a backup</string>
+    <string name="recovery_title_new_pin">Choose a new PIN</string>
+    <string name="recovery_choose_body">Prove the phone is yours and you can set a new PIN. Your enrolled faces and settings stay exactly as they are.</string>
+    <string name="recovery_choose_code">I have my recovery code</string>
+    <string name="recovery_choose_backup">I have a backup file</string>
+    <string name="recovery_code_body">The 12-character code Guardia showed you when you set your PIN. Dashes and capitals don\'t matter.</string>
+    <string name="recovery_code_placeholder" translatable="false">XXXX-XXXX-XXXX</string>
+    <string name="recovery_code_wrong">That code doesn\'t match.</string>
+    <string name="recovery_backup_body">Pick a Guardia backup you exported from this phone, and enter the password you chose for it. Nothing is restored - the file is only used to prove the phone is yours.</string>
+    <string name="recovery_backup_last_resort">Without a backup or a recovery code, the only way back in is to reinstall Guardia, which erases your enrolled faces.</string>
+    <string name="recovery_backup_choose_file">Choose backup file</string>
+    <string name="recovery_backup_file_selected">Backup file selected</string>
+    <string name="recovery_backup_password">Backup password</string>
+    <string name="recovery_backup_checking">Checking…</string>
+    <string name="recovery_new_pin_body">4 to 6 digits. Your decoy and panic PINs are unchanged.</string>
+    <string name="recovery_new_pin">New PIN</string>
+    <string name="recovery_confirm_pin">Confirm PIN</string>
+    <string name="recovery_pins_differ">Those don\'t match.</string>
+    <string name="recovery_set_pin_and_unlock">Set PIN and unlock</string>
+
+    <string name="action_continue">Continue</string>
+    <string name="action_back">Back</string>
+    <string name="action_cancel">Cancel</string>
 </resources>

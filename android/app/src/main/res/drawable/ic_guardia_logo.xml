@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- In-app brand mark: the Sentinel shield on a soft halo (onboarding hero, about, lock screens). -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:aapt="http://schemas.android.com/aapt"
     android:width="120dp"
@@ -6,61 +7,35 @@
     android:viewportWidth="120"
     android:viewportHeight="120">
     <path
-        android:fillColor="#18E6C8"
-        android:fillAlpha="0.16"
-        android:pathData="M60,62m-38,0a38,38 0,1 1,76 0a38,38 0,1 1,-76 0" />
+        android:fillColor="#2CF5D8"
+        android:fillAlpha="0.14"
+        android:pathData="M60,61m-40,0a40,40 0,1 1,80 0a40,40 0,1 1,-80 0" />
     <path
         android:fillColor="#00000000"
-        android:pathData="M82,50.5 A27.5,27.5 0 1 0 82,73.5"
-        android:strokeWidth="10.5"
-        android:strokeLineCap="round">
-        <aapt:attr name="android:strokeColor">
-            <gradient
-                android:endX="76"
-                android:endY="86"
-                android:startX="44"
-                android:startY="34"
-                android:type="linear">
-                <item android:color="#FFFFFFFF" android:offset="0" />
-                <item android:color="#FFD8FFF8" android:offset="0.38" />
-                <item android:color="#FF18C9E0" android:offset="1" />
-            </gradient>
-        </aapt:attr>
-    </path>
+        android:strokeColor="#2CF5D8"
+        android:strokeAlpha="0.30"
+        android:strokeWidth="1.5"
+        android:pathData="M60,61m-36,0a36,36 0,1 1,72 0a36,36 0,1 1,-72 0" />
     <path
         android:fillColor="#00000000"
-        android:pathData="M71,62 L84,62"
-        android:strokeWidth="10.5"
-        android:strokeLineCap="round">
+        android:pathData="M71.4,41.5 L78.3,44.4 L78.3,61.1 C78.3,72.8 70.6,80 60,84.4 C49.4,80 41.7,72.8 41.7,61.1 L41.7,44.4 L60,36.7 L62.2,37.6"
+        android:strokeWidth="6.7"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round">
         <aapt:attr name="android:strokeColor">
             <gradient
-                android:endX="76"
-                android:endY="86"
-                android:startX="44"
+                android:startX="42"
                 android:startY="34"
+                android:endX="80"
+                android:endY="88"
                 android:type="linear">
                 <item android:color="#FFFFFFFF" android:offset="0" />
-                <item android:color="#FFD8FFF8" android:offset="0.38" />
-                <item android:color="#FF18C9E0" android:offset="1" />
-            </gradient>
-        </aapt:attr>
-    </path>
-    <path
-        android:pathData="M53.5,55.2 C55.2,55.2 56.6,55.6 57.7,56.1 C58.2,56.3 58.2,56.8 58.2,57.3 C58.2,58.8 56.8,60.2 53.5,61.5 C50.2,60.2 48.8,58.8 48.8,57.3 C48.8,56.8 48.8,56.3 49.3,56.1 C50.4,55.6 51.8,55.2 53.5,55.2 Z">
-        <aapt:attr name="android:fillColor">
-            <gradient
-                android:endX="53.5"
-                android:endY="61.5"
-                android:startX="53.5"
-                android:startY="55.2"
-                android:type="linear">
-                <item android:color="#FFFFFFFF" android:offset="0" />
-                <item android:color="#FF54FBE0" android:offset="0.55" />
-                <item android:color="#FF0A8C9E" android:offset="1" />
+                <item android:color="#FF7FF9E4" android:offset="0.45" />
+                <item android:color="#FF12B9CF" android:offset="1" />
             </gradient>
         </aapt:attr>
     </path>
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M82,50.5m-2.1,0a2.1,2.1 0,1 1,4.2 0a2.1,2.1 0,1 1,-4.2 0" />
+        android:pathData="M60,58.3m-5,0a5,5 0,1 1,10 0a5,5 0,1 1,-10 0" />
 </vector>

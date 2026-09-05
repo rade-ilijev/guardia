@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Dedicated monochrome layer for Android 13+ themed icons: the shield + eye silhouette only,
+    slightly heavier stroke for legibility, no halo — gradients turn to mud under theming.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="7"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M64.23,37.34 L70.5,40 L70.5,55 C70.5,65.5 63.5,72 54,76 C44.5,72 37.5,65.5 37.5,55 L37.5,40 L54,33 L55.98,33.84" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,52.5m-5,0a5,5 0,1 1,10 0a5,5 0,1 1,-10 0" />
+</vector>

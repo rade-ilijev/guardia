@@ -59,6 +59,9 @@ class VoiceService : LifecycleService() {
     }
 
     private fun startPorcupine() {
+        // Re-delivered start commands (START_STICKY restarts, duplicate service starts from the
+        // settings screen and the guard loop) must not stack a second Porcupine engine.
+        if (porcupineManager != null) return
         val accessKey = BuildConfig.PICOVOICE_ACCESS_KEY
         if (accessKey.isBlank()) {
             Log.w(TAG, "No Picovoice AccessKey; voice safeword disabled")
@@ -97,9 +100,14 @@ class VoiceService : LifecycleService() {
                 logVoice("Guarding started by voice")
             }
             KEYWORD_STOP -> {
-                GuardController.stop(applicationContext)
-                TestNotifier.showVoiceResult(applicationContext, "Heard safeword - guarding stopped")
-                logVoice("Guarding stopped by voice")
+                // Stopping protection is PIN-gated, exactly like the Quick Settings tile: the
+                // keywords are public (Porcupine built-ins) and there is no speaker verification
+                // yet, so an intruder must never be able to disarm guarding by voice alone.
+                val gate = Intent(applicationContext, com.guardia.app.core.guard.StopGuardActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                runCatching { applicationContext.startActivity(gate) }
+                TestNotifier.showVoiceResult(applicationContext, "Heard safeword - enter your PIN to stop guarding")
+                logVoice("Voice stop requested - PIN gate shown")
             }
         }
     }

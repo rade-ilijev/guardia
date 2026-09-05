@@ -21,7 +21,6 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PersonOff
 import androidx.compose.material3.ExtendedFloatingActionButton
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
@@ -40,21 +39,32 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.guardia.app.domain.model.Person
 import com.guardia.app.ui.components.GuardiaCard
 import com.guardia.app.ui.components.GuardiaScaffold
+import com.guardia.app.ui.components.HorizontalDivider
 import com.guardia.app.ui.components.IconChip
+import com.guardia.app.ui.components.PersonAvatar
 import com.guardia.app.ui.components.SectionHeader
+import com.guardia.app.ui.theme.Guardia
 import com.guardia.app.ui.theme.Spacing
+import com.guardia.app.ui.components.animateEntrance
+import androidx.compose.runtime.remember
 
 @Composable
 fun PeopleScreen(
     onAddPerson: () -> Unit,
     onOpenBlocked: () -> Unit,
     onOpenPerson: (String) -> Unit,
+    onGuestPass: () -> Unit = {},
     viewModel: PeopleViewModel = hiltViewModel(),
 ) {
     val people by viewModel.people.collectAsStateWithLifecycle()
     val needsReenroll by viewModel.needsReenroll.collectAsStateWithLifecycle()
     val allowed = people.filter { !it.blocked }
     val blockedCount = people.count { it.blocked }
+
+    // Only animate items composed while the screen is arriving; an item scrolled back into view is
+    // a fresh composition, and without this the list would re-play its entrance on every scroll up.
+    val enteredAt = remember { android.os.SystemClock.uptimeMillis() }
+    fun arriving() = android.os.SystemClock.uptimeMillis() - enteredAt < 700L
 
     GuardiaScaffold(
         title = "People",
@@ -63,13 +73,19 @@ fun PeopleScreen(
                 onClick = onAddPerson,
                 icon = { Icon(Icons.Filled.Add, contentDescription = null) },
                 text = { Text("Add person") },
-                modifier = Modifier.padding(bottom = 84.dp),
+                // Clear the floating navigation bar, not just the system inset.
+                modifier = Modifier.padding(bottom = 96.dp),
             )
         },
     ) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(start = Spacing.screen, top = Spacing.screen, end = Spacing.screen, bottom = 100.dp),
+            contentPadding = PaddingValues(
+                start = Spacing.screen,
+                top = Spacing.screen,
+                end = Spacing.screen,
+                bottom = Spacing.bottomBarClearance,
+            ),
             verticalArrangement = Arrangement.spacedBy(Spacing.lg),
         ) {
             if (needsReenroll) {
@@ -81,22 +97,27 @@ fun PeopleScreen(
                 }
             }
             item {
-                BlockedLinkCard(blockedCount, onOpenBlocked)
+                Box(Modifier.animateEntrance(0, arriving())) { BlockedLinkCard(blockedCount, onOpenBlocked) }
             }
             item {
-                SectionHeader("Allowed people")
-                if (allowed.isEmpty()) {
-                    AllowedEmptyState()
-                } else {
-                    GuardiaCard(modifier = Modifier.fillMaxWidth()) {
-                        Column {
-                            allowed.forEachIndexed { index, person ->
-                                PersonRow(person, blocked = false, onOpenPerson = onOpenPerson) { viewModel.remove(person.id) }
-                                if (index < allowed.lastIndex) {
-                                    HorizontalDivider(
-                                        color = MaterialTheme.colorScheme.outlineVariant,
-                                        modifier = Modifier.padding(start = 72.dp),
-                                    )
+                Box(Modifier.animateEntrance(1, arriving())) { GuestPassCard(onGuestPass) }
+            }
+            item {
+                Column(Modifier.animateEntrance(2, arriving())) {
+                    SectionHeader("Allowed people")
+                    if (allowed.isEmpty()) {
+                        AllowedEmptyState()
+                    } else {
+                        GuardiaCard(modifier = Modifier.fillMaxWidth()) {
+                            Column {
+                                allowed.forEachIndexed { index, person ->
+                                    PersonRow(person, blocked = false, onOpenPerson = onOpenPerson) { viewModel.remove(person.id) }
+                                    if (index < allowed.lastIndex) {
+                                        HorizontalDivider(
+                                            color = MaterialTheme.colorScheme.outlineVariant,
+                                            modifier = Modifier.padding(start = 72.dp),
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -133,18 +154,57 @@ private fun BlockedLinkCard(count: Int, onClick: () -> Unit) {
     }
 }
 
+/** "Lend my phone": entry to the temporary trusted-face flow. */
+@Composable
+private fun GuestPassCard(onClick: () -> Unit) {
+    GuardiaCard(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onClick() }
+                .padding(Spacing.lg),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconChip(Icons.Filled.Person, tint = MaterialTheme.colorScheme.tertiary, size = 44.dp)
+            Spacer(Modifier.size(Spacing.md))
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Guest pass", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text(
+                    "Lend your phone — trust a face for a few hours, then forget it",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
 @Composable
 internal fun PersonRow(person: Person, blocked: Boolean, onOpenPerson: (String) -> Unit, onRemove: () -> Unit) {
-    val tint = if (blocked) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+    val guest = person.expiresAt != null
+    val tint = when {
+        blocked -> MaterialTheme.colorScheme.error
+        guest -> MaterialTheme.colorScheme.tertiary
+        else -> Guardia.colors.success
+    }
     ListItem(
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
         modifier = Modifier.clickable { onOpenPerson(person.id) },
-        leadingContent = { IconChip(if (blocked) Icons.Filled.Block else Icons.Filled.Person, tint = tint, size = 44.dp) },
+        leadingContent = { PersonAvatar(person.name, person.photoPath, ring = tint, size = 44.dp) },
         headlineContent = { Text(person.name) },
         supportingContent = {
+            val genderLabel = when (person.gender) {
+                "MALE" -> "Male - "
+                "FEMALE" -> "Female - "
+                else -> ""
+            }
             Text(
-                if (blocked) "${person.sampleCount} face sample(s) - locks on match"
-                else "${person.sampleCount} face sample(s) - tap to manage"
+                when {
+                    guest -> "Guest - expires ${android.text.format.DateUtils.getRelativeTimeSpanString(person.expiresAt!!)}"
+                    blocked -> "$genderLabel${person.sampleCount} face sample(s) - locks on match"
+                    else -> "$genderLabel${person.sampleCount} face sample(s) - tap to manage"
+                }
             )
         },
         trailingContent = {

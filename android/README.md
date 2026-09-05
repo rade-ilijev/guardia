@@ -52,3 +52,8 @@ signed from `signing.properties` (see `signing.properties.example`).
 - `core/voice` / `core/location` / `core/alerts` — safeword, safe zones, email/SMS alerts.
 - `core/security` / `core/billing` — Keystore crypto + PINs, Play Billing + cached entitlement.
 - `data`, `data/db`, `di`, `domain/model`, `ui` — repositories/Room/DataStore, Hilt, models, Compose.
+
+## Further reading
+- [`DESIGN.md`](DESIGN.md) — the design system: tokens, components, motion.
+- [`LOCALIZATION.md`](LOCALIZATION.md) — translation conventions, and the locale-correctness rules
+  that matter even while the app is English-only.

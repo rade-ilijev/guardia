@@ -43,6 +43,8 @@ class BillingManager @Inject constructor(
 
     private var productDetails: ProductDetails? = null
 
+    private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+
     private val client: BillingClient = BillingClient.newBuilder(context)
         .setListener(this)
         .enablePendingPurchases(
@@ -52,12 +54,15 @@ class BillingManager @Inject constructor(
         )
         .build()
 
+    private var reconnectAttempts = 0
+
     fun connect() {
         if (_status.value == Status.Connecting || _status.value == Status.Ready) return
         _status.value = Status.Connecting
         client.startConnection(object : BillingClientStateListener {
             override fun onBillingSetupFinished(result: BillingResult) {
                 if (result.responseCode == BillingClient.BillingResponseCode.OK) {
+                    reconnectAttempts = 0
                     queryProduct()
                     queryPurchases()
                 } else {
@@ -67,8 +72,17 @@ class BillingManager @Inject constructor(
 
             override fun onBillingServiceDisconnected() {
                 _status.value = Status.Idle
+                scheduleReconnect()
             }
         })
+    }
+
+    /** The Play service can drop; retry with a capped backoff so entitlement refreshes recover. */
+    private fun scheduleReconnect() {
+        if (reconnectAttempts >= MAX_RECONNECTS) return
+        val delayMs = (RECONNECT_BASE_MS shl reconnectAttempts).coerceAtMost(RECONNECT_MAX_MS)
+        reconnectAttempts++
+        mainHandler.postDelayed({ if (_status.value == Status.Idle) connect() }, delayMs)
     }
 
     private fun queryProduct() {
@@ -133,8 +147,12 @@ class BillingManager @Inject constructor(
 
     override fun onPurchasesUpdated(result: BillingResult, purchases: MutableList<Purchase>?) {
         if (result.responseCode == BillingClient.BillingResponseCode.OK && purchases != null) {
-            val active = purchases.any { it.purchaseState == Purchase.PurchaseState.PURCHASED }
-            entitlements.setPremium(active)
+            // Only *grant* here. This callback reflects a single flow's result (which may carry a
+            // PENDING purchase), so it must never revoke a subscriber's cached entitlement — the
+            // authoritative snapshot in queryPurchases() is what clears it on a real cancellation.
+            if (purchases.any { it.purchaseState == Purchase.PurchaseState.PURCHASED }) {
+                entitlements.setPremium(true)
+            }
             purchases.forEach { acknowledge(it) }
         }
     }
@@ -160,5 +178,8 @@ class BillingManager @Inject constructor(
     companion object {
         private const val TAG = "BillingManager"
         const val SUB_ID = "guardia_premium_monthly"
+        private const val MAX_RECONNECTS = 5
+        private const val RECONNECT_BASE_MS = 1000L
+        private const val RECONNECT_MAX_MS = 30_000L
     }
 }

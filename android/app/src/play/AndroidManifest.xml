@@ -3,9 +3,23 @@
     Play-flavor manifest overlay. Strips the most heavily-scrutinized Play capabilities from the
     merged manifest so the store build only carries camera-FGS, device admin, overlay and
     (minimal) accessibility. SMS find-my-phone and background location are full-flavor only.
+
+    The microphone goes too, and for a different reason: the voice safeword needs a Picovoice
+    AccessKey compiled in (picovoice.accessKey in local.properties), and without one VoiceService
+    exits immediately. Shipping RECORD_AUDIO and a background microphone foreground service for a
+    feature that cannot run is both a poor experience and a straightforward Play violation
+    ("request only the permissions your app needs"). The sideload build keeps all of it.
+
+    TO RE-ENABLE VOICE ON PLAY: set picovoice.accessKey in local.properties, delete the three
+    microphone nodes below, and drop the PLAY_BUILD arm of the check in
+    SettingsDetailScreen.VoiceSection. The store listing and Data Safety form then have to declare
+    audio use.
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.RECORD_AUDIO" tools:node="remove" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" tools:node="remove" />
 
     <uses-permission android:name="android.permission.SEND_SMS" tools:node="remove" />
     <uses-permission android:name="android.permission.RECEIVE_SMS" tools:node="remove" />
@@ -14,5 +28,7 @@
     <application>
         <!-- No SMS-triggered find-my-phone in the Play build. -->
         <receiver android:name=".core.alerts.SmsReceiver" tools:node="remove" />
+        <!-- No voice safeword without a Picovoice key; see the note above. -->
+        <service android:name=".core.voice.VoiceService" tools:node="remove" />
     </application>
 </manifest>

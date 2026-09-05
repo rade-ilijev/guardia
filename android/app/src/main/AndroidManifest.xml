@@ -17,6 +17,9 @@
     <!-- Alerts & Recovery -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Trusted Wi-Fi: read the connected SSID (normal permission; the SSID itself additionally
+         requires the location grant the user may already have given for safe zones). -->
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.SEND_SMS" />
     <!-- Only used when the user enables Find-my-phone; receiver stays disabled until then. -->
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
@@ -45,6 +48,7 @@
         android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
+        android:localeConfig="@xml/locales_config"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.Guardia"
@@ -87,11 +91,19 @@
             android:taskAffinity=""
             android:theme="@style/Theme.Guardia.Overlay" />
 
-        <!-- Persistent guarding foreground service (camera + microphone + special use) -->
+        <!--
+            Persistent guarding foreground service.
+
+            No `microphone` type: GuardService itself never records audio — it only ever promotes
+            with camera, location or specialUse (see GuardService.startForegroundCompat). The voice
+            safeword runs in its own VoiceService, which declares the microphone type on itself. A
+            foreground-service type declared but never used is a permission the app is asking for
+            and not exercising, which is exactly what Play's review looks for.
+        -->
         <service
             android:name=".core.guard.GuardService"
             android:exported="false"
-            android:foregroundServiceType="camera|microphone|location|specialUse">
+            android:foregroundServiceType="camera|location|specialUse">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Continuous on-device identity guarding (face/voice) to lock the device when an unauthorized user is detected." />
@@ -169,6 +181,22 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths" />
         </provider>
+
+        <!--
+            Home-screen widget. Arming is one tap; disarming routes through StopGuardActivity's PIN
+            gate, because a widget lives on a home screen an intruder holding the unlocked phone can
+            already reach.
+        -->
+        <receiver
+            android:name=".core.widget.GuardiaWidget"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_guardia_info" />
+        </receiver>
 
         <!-- Quick Settings tile: start/stop guarding -->
         <service

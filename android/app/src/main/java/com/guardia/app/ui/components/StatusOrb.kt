@@ -4,21 +4,25 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
-import androidx.compose.ui.res.painterResource
-import com.guardia.app.R
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
@@ -27,15 +31,28 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import kotlin.math.cos
-import kotlin.math.sin
+import com.guardia.app.R
+import com.guardia.app.ui.theme.Guardia
 
 /**
- * Futuristic status hero: layered radial glow, a radar dial of tick marks, concentric rings, a
- * pulsing "ping" halo and two counter-rotating scan arcs (while [active]), with the brand icon at
- * the center. Conveys "live protection" with calm, deliberate motion rather than busy flicker.
+ * The dashboard's status hero — a gauge that is unmistakably *live* when the guard is running.
+ *
+ * It is built in four layers, because that is what separates something that looks alive from
+ * something that merely blinks:
+ *
+ *  1. a hairline track ring, always there, so the gauge has a shape even when off;
+ *  2. an indicator arc filled with the brand ramp, which sweeps round as the guard arms;
+ *  3. two sonar rings expanding out of the centre on an offset cycle — the visual of a *check
+ *     happening*, and the only continuously moving element on the page;
+ *  4. a rotating comet riding the ring, which is what makes the eye read the gauge as scanning
+ *     rather than as a static dial with a glow on it.
+ *
+ * Layers 3 and 4 live in [LiveLayer], composed only while the guard is actually running and motion
+ * is allowed — so an idle or reduced-motion device starts no animation clock at all and the static
+ * gauge underneath still says everything it needs to.
  */
 @Composable
 fun StatusOrb(
@@ -45,154 +62,148 @@ fun StatusOrb(
     size: Dp = 200.dp,
     accent: Color = MaterialTheme.colorScheme.primary,
 ) {
-    val transition = rememberInfiniteTransition(label = "orb")
-    val sweep by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(tween(4200, easing = LinearEasing)),
-        label = "sweep",
+    val c = Guardia.colors
+    val statusColor by animateColorAsState(
+        targetValue = if (active) accent else c.mutedForeground,
+        animationSpec = tween(420),
+        label = "orbStatus",
     )
-    val counterSweep by transition.animateFloat(
-        initialValue = 360f,
-        targetValue = 0f,
-        animationSpec = infiniteRepeatable(tween(6800, easing = LinearEasing)),
-        label = "counterSweep",
+    // The arc fills as the guard arms and retracts when it stops — state feedback, so it still runs
+    // under reduced motion (it settles and then stops, which is the distinction that matters).
+    val fill by animateFloatAsState(
+        targetValue = if (active) 1f else 0.08f,
+        animationSpec = tween(760),
+        label = "orbFill",
     )
-    val breathe by transition.animateFloat(
-        initialValue = 0.86f,
-        targetValue = 1.0f,
-        animationSpec = infiniteRepeatable(tween(2200), repeatMode = RepeatMode.Reverse),
-        label = "breathe",
-    )
-    // A single expanding + fading "ping" ring, like sonar (only meaningful while active).
-    val ping by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(2600, easing = LinearEasing)),
-        label = "ping",
-    )
-    val live by animateColorAsState(
-        targetValue = if (active) accent else MaterialTheme.colorScheme.onSurfaceVariant,
-        animationSpec = tween(500),
-        label = "live",
-    )
-    val glowAlpha = if (active) breathe * 0.55f else 0.12f
-    val ringBase = MaterialTheme.colorScheme.outlineVariant
+    val reduced = rememberReducedMotion()
+    val ramp = remember(statusColor, active, c.gradientBrand) {
+        if (active) c.gradientBrand else listOf(statusColor, statusColor)
+    }
 
     Box(modifier = modifier.size(size), contentAlignment = Alignment.Center) {
-        Canvas(modifier = Modifier.size(size)) {
-            val c = Offset(this.size.width / 2f, this.size.height / 2f)
-            val r = this.size.minDimension / 2f
+        Canvas(Modifier.fillMaxSize()) {
+            val centre = Offset(this.size.width / 2f, this.size.height / 2f)
+            val stroke = 7.dp.toPx()
+            val radius = this.size.minDimension / 2f - stroke
+            val arcSize = Size(radius * 2, radius * 2)
+            val topLeft = Offset(centre.x - radius, centre.y - radius)
 
-            // Layered radial glow for depth (bright core → soft falloff).
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = listOf(
-                        live.copy(alpha = glowAlpha),
-                        live.copy(alpha = glowAlpha * 0.35f),
-                        Color.Transparent,
-                    ),
-                    center = c,
-                    radius = r,
-                ),
-                radius = r,
-                center = c,
-            )
-
-            // Expanding sonar ping (active only): grows outward and fades.
-            if (active) {
-                val pingR = r * (0.5f + ping * 0.5f)
-                drawCircle(
-                    color = live.copy(alpha = (1f - ping) * 0.35f),
-                    radius = pingR,
-                    center = c,
-                    style = Stroke(width = 2.dp.toPx()),
-                )
-            }
-
-            // Radar dial: short tick marks around the outer edge.
-            val tickCount = 48
-            val tickOuter = r * 0.99f
-            val tickInner = r * 0.93f
-            for (i in 0 until tickCount) {
-                val ang = (i.toFloat() / tickCount) * 2f * Math.PI.toFloat()
-                val major = i % 4 == 0
-                val innerR = if (major) r * 0.90f else tickInner
-                val start = Offset(c.x + cos(ang) * innerR, c.y + sin(ang) * innerR)
-                val end = Offset(c.x + cos(ang) * tickOuter, c.y + sin(ang) * tickOuter)
-                drawLine(
-                    color = ringBase.copy(alpha = if (major) 0.55f else 0.28f),
-                    start = start,
-                    end = end,
-                    strokeWidth = (if (major) 1.6f else 1.0f).dp.toPx(),
-                )
-            }
-
-            // Concentric rings.
-            val rings = listOf(0.86f, 0.68f, 0.5f)
-            rings.forEachIndexed { i, frac ->
-                drawCircle(
-                    color = ringBase.copy(alpha = 0.5f - i * 0.12f),
-                    radius = r * frac,
-                    center = c,
-                    style = Stroke(width = 1.5.dp.toPx()),
-                )
-            }
-
-            // Bright base arc on the outer ring.
-            val arcR = r * 0.86f
-            val arcSize = Size(arcR * 2, arcR * 2)
-            val topLeft = Offset(c.x - arcR, c.y - arcR)
+            // Track — the full circle at a constant, quiet weight.
             drawArc(
-                color = live.copy(alpha = if (active) 0.85f else 0.4f),
-                startAngle = -90f,
-                sweepAngle = 250f,
-                useCenter = false,
-                topLeft = topLeft,
-                size = arcSize,
-                style = Stroke(width = 4.dp.toPx(), cap = StrokeCap.Round),
+                color = c.muted,
+                startAngle = 0f, sweepAngle = 360f, useCenter = false,
+                topLeft = topLeft, size = arcSize,
+                style = Stroke(width = stroke, cap = StrokeCap.Round),
             )
+            // Indicator — starts at 12 o'clock, like every gauge the user has ever read. Drawn with
+            // a sweep gradient so the ramp travels *around* the arc rather than across its bounding
+            // box, which is the difference between a coloured ring and a lit one.
+            drawArc(
+                brush = Brush.sweepGradient(
+                    colors = ramp + ramp.first(),
+                    center = centre,
+                ),
+                startAngle = -90f, sweepAngle = 360f * fill, useCenter = false,
+                topLeft = topLeft, size = arcSize,
+                style = Stroke(width = stroke, cap = StrokeCap.Round),
+            )
+        }
 
-            // Two counter-rotating scan arcs (only while active) for a "live sweep" feel.
+        if (active && !reduced) LiveLayer(color = statusColor)
+
+        // Center disc: muted when off, a lit well of brand colour when live.
+        val discFill = remember(active, statusColor, c.muted) {
             if (active) {
-                drawArc(
-                    brush = Brush.sweepGradient(listOf(Color.Transparent, live), center = c),
-                    startAngle = sweep,
-                    sweepAngle = 90f,
-                    useCenter = false,
-                    topLeft = Offset(c.x - r * 0.68f, c.y - r * 0.68f),
-                    size = Size(r * 0.68f * 2, r * 0.68f * 2),
-                    style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round),
+                Brush.verticalGradient(
+                    listOf(statusColor.copy(alpha = 0.24f), statusColor.copy(alpha = 0.05f)),
                 )
-                drawArc(
-                    brush = Brush.sweepGradient(listOf(Color.Transparent, live.copy(alpha = 0.6f)), center = c),
-                    startAngle = counterSweep,
-                    sweepAngle = 60f,
-                    useCenter = false,
-                    topLeft = Offset(c.x - r * 0.5f, c.y - r * 0.5f),
-                    size = Size(r * 0.5f * 2, r * 0.5f * 2),
-                    style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round),
-                )
-                // A small orbiting node riding the outer ring.
-                rotate(degrees = sweep + 90f, pivot = c) {
-                    drawCircle(
-                        color = live,
-                        radius = 3.dp.toPx(),
-                        center = Offset(c.x, c.y - r * 0.86f),
-                    )
-                }
+            } else {
+                Brush.verticalGradient(listOf(c.muted, c.muted))
             }
         }
-        Icon(
-            icon,
-            contentDescription = null,
-            tint = live,
-            modifier = Modifier.size(size * 0.30f),
-        )
+        Box(
+            modifier = Modifier
+                .then(
+                    if (active) Modifier.glow(statusColor, CircleShape, radius = 32.dp, alpha = 0.55f)
+                    else Modifier,
+                )
+                .size(size * 0.46f)
+                .clip(CircleShape)
+                .background(discFill, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                icon,
+                contentDescription = null,
+                tint = statusColor,
+                modifier = Modifier.size(size * 0.21f),
+            )
+        }
     }
 }
 
-/** Brand mark: luminous G with shield nested inside (from [R.drawable.ic_guardia_logo]). */
+/**
+ * The moving parts: two sonar rings and a comet on the ring.
+ *
+ * The two rings share one clock and are drawn half a cycle apart, so there is always one expanding
+ * — a single ring leaves a dead beat between pulses that reads as the app having stopped.
+ */
+@Composable
+private fun LiveLayer(color: Color) {
+    val transition = rememberInfiniteTransition(label = "orbLive")
+    val ping by transition.animateFloat(
+        initialValue = 0f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(2800, easing = LinearEasing)),
+        label = "orbPing",
+    )
+    val sweep by transition.animateFloat(
+        initialValue = 0f, targetValue = 360f,
+        animationSpec = infiniteRepeatable(tween(3600, easing = LinearEasing)),
+        label = "orbSweep",
+    )
+    val breathe by transition.animateFloat(
+        initialValue = 0.05f, targetValue = 0.13f,
+        animationSpec = infiniteRepeatable(tween(2200), repeatMode = RepeatMode.Reverse),
+        label = "orbBreathe",
+    )
+
+    Canvas(Modifier.fillMaxSize()) {
+        val centre = Offset(size.width / 2f, size.height / 2f)
+        val maxR = size.minDimension / 2f - 7.dp.toPx()
+
+        // Interior wash, breathing — stops the disc reading as a hole while the guard is running.
+        drawCircle(color = color.copy(alpha = breathe), radius = maxR * 0.92f, center = centre)
+
+        // Two sonar rings, half a cycle apart.
+        for (offset in listOf(0f, 0.5f)) {
+            val t = (ping + offset) % 1f
+            drawCircle(
+                color = color.copy(alpha = (1f - t) * 0.30f),
+                radius = maxR * (0.34f + t * 0.66f),
+                center = centre,
+                style = Stroke(width = 1.5.dp.toPx()),
+            )
+        }
+
+        // The comet: a short, bright arc riding the ring, fading out behind itself.
+        rotate(degrees = sweep, pivot = centre) {
+            drawArc(
+                brush = Brush.sweepGradient(
+                    colors = listOf(Color.Transparent, color.copy(alpha = 0.9f)),
+                    center = centre,
+                ),
+                startAngle = -110f,
+                sweepAngle = 74f,
+                useCenter = false,
+                topLeft = Offset(centre.x - maxR, centre.y - maxR),
+                size = Size(maxR * 2, maxR * 2),
+                style = Stroke(width = 7.dp.toPx(), cap = StrokeCap.Round),
+            )
+        }
+    }
+}
+
+/** Brand mark: the shield sentinel (from [R.drawable.ic_guardia_logo]). */
 @Composable
 fun GuardiaLogo(modifier: Modifier = Modifier, size: Dp = 120.dp) {
     Image(

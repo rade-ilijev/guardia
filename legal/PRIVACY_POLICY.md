@@ -51,12 +51,13 @@ There is no Guardia cloud and no Guardia login. We cannot see any of this data.
 
 | Data / sensor | Why Guardia uses it | Where it goes | Your control |
 |---|---|---|---|
-| **Camera (face)** | Detect/recognize who is using the device; capture an intruder photo | Processed on-device; enrollments + encrypted intruder photos stored locally | Deny/revoke Camera permission; delete people and photos in-app |
+| **Camera (face)** | Detect/recognize who is using the device; capture intruder photos (an incident may store a short burst of several shots). Guest passes enroll a temporary face that is deleted automatically at expiry. If a lock turns out to be you, the "Was that you?" prompt can — only on your explicit tap — add that one photo's face data to your own profile | Processed on-device; enrollments + encrypted intruder photos stored locally | Deny/revoke Camera permission; delete people and photos in-app |
 | **Microphone (voice safeword)** *(optional)* | Offline wake-word to start/stop guarding hands-free | Processed live on-device; **never recorded, stored, or sent** | Off by default; turn off Voice; revoke Microphone |
 | **Location** *(optional, Premium)* | Adjust guarding by place ("safe zones"); attach a map link to alerts you set up | Used on-device; only sent inside an alert **you** configured, to the recipient **you** chose | Off by default; revoke Location anytime |
 | **SMS — send/receive** *(optional)* | "Find my phone": detect your secret keyword text, lock, and reply with location; send a security text to your trusted number | Sent via your own carrier to the recipient **you** set | Receiver is **disabled** until you enable Find-my-phone; revoke SMS anytime |
 | **Email alerts** *(optional)* | Email you a security event (optionally with photo/location) using **your** SMTP details | Sent directly from your device to the email server **you** entered | Off by default; your SMTP password is encrypted on-device |
 | **Installed apps / foreground app** *(optional)* | Let you pick which apps to protect; know which app is open for per-app checks/App Lock | Stays on-device; app **content is never read or sent** | Don't enable App Lock / per-app checks; revoke Accessibility |
+| **Wi-Fi network name (Trusted Wi-Fi)** *(optional)* | Pause periodic checks while connected to a network you marked as trusted (e.g. home) | Trusted network names (SSIDs) stored on-device only; the current network's name is read locally for comparison and never sent anywhere (Android requires the location grant to read it — a platform rule) | Off by default; remove trusted networks anytime (Settings > Check Schedule) |
 | **Security data created by the app** | PINs (stored only as salted hashes), event log, settings, battery/usage stats | Stored locally on-device | Change/clear in-app; uninstall removes all |
 | **Purchases (subscription)** | Provide and restore Guardia Premium | Handled by **Google Play Billing** (Google's terms apply) | Manage/cancel in Google Play |
 
@@ -134,7 +135,8 @@ involving information you sent us (such as a support email), contact radeilijev1
 ## 9. Data retention
 
 - **On your device:** kept until you delete it or uninstall. Intruder photos are capped and old
-  events are pruned automatically; you can also clear them manually anytime.
+  events are pruned automatically; you can also clear them manually anytime. Guest passes and
+  their face data are deleted automatically when the pass expires.
 - **With us:** nothing, because nothing is uploaded to us. Support emails you send are kept only as
   long as needed to help you, then deleted.
 

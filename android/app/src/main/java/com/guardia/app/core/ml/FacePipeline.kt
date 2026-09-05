@@ -26,6 +26,12 @@ interface FacePipeline {
         val eyesOpen: Float? = null,
         val headYaw: Float? = null,
         val headPitch: Float? = null,
+        /**
+         * How decisively the match beat the best known impostor (block-listed people and faces the
+         * user declined). Zero on a non-match. A small positive margin means "probably the owner,
+         * but someone who looks like them was close behind".
+         */
+        val margin: Float = 0f,
     )
 
     /** Analyzes a captured frame. [rotationDegrees] is applied before detection. */

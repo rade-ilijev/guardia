@@ -24,11 +24,16 @@ import javax.inject.Singleton
  * Format: "GBK1" magic + 16-byte salt + 12-byte IV + AES-256-GCM ciphertext of a JSON payload.
  * Encryption is derived from the user's password (PBKDF2WithHmacSHA256), so a backup can be
  * restored on any device/install - unlike the device-keystore encryption used for media.
+ *
+ * Payload version 3 adds an "owner" field: the exporting install's token. It is not part of
+ * restoring - [import] ignores it - but it lets [verifyOwner] tell the owner's own backup from a
+ * stranger's, which is what makes the file usable as a PIN-recovery credential on the lock screen.
  */
 @Singleton
 class BackupManager @Inject constructor(
     private val dao: PersonDao,
     private val people: com.guardia.app.data.PeopleRepository,
+    private val prefs: com.guardia.app.data.AppPreferences,
 ) {
     private val magic = "GBK1".toByteArray(Charsets.US_ASCII)
 
@@ -37,13 +42,28 @@ class BackupManager @Inject constructor(
         data class Error(val message: String) : ImportResult
     }
 
+    /** Outcome of asking whether a backup file was produced by *this* install. */
+    sealed interface OwnerCheck {
+        /** The file came from this install, so it can authorise a PIN reset. */
+        data object Owned : OwnerCheck
+
+        /** It decrypted, but it is somebody else's backup. */
+        data object Foreign : OwnerCheck
+
+        data class Error(val message: String) : OwnerCheck
+    }
+
     suspend fun export(password: CharArray): ByteArray = withContext(Dispatchers.IO) {
         val people = dao.allPeople()
         val samples = dao.allSamples()
         val negatives = dao.allNegatives()
         val payload = JSONObject().apply {
-            put("version", 2)
+            put("version", 3)
             put("createdAt", System.currentTimeMillis())
+            // Proof of origin, not a credential: see AppPreferences.installToken. It is what lets a
+            // locked-out owner reset their PIN from this file without handing the same power to
+            // anyone who can make a backup of their own.
+            put("owner", prefs.installToken())
             put("people", JSONArray().apply {
                 people.forEach { p ->
                     put(JSONObject().apply {
@@ -93,22 +113,49 @@ class BackupManager @Inject constructor(
         magic + salt + iv + cipherText
     }
 
+    /**
+     * Decides whether [data] is a backup this install produced, without importing anything.
+     *
+     * Used by the lock screen: someone who has forgotten their PIN still has all their faces on the
+     * device, so there is nothing to restore — the file's job there is to prove ownership.
+     *
+     * Two things can prove it. Backups from version 3 onward carry this install's token. Older
+     * files do not, so they fall back to overlap of person IDs: those are random UUIDs minted on
+     * this device, and a stranger's backup cannot contain one. The fallback needs at least one
+     * enrolled person, which is why the token exists at all.
+     */
+    suspend fun verifyOwner(data: ByteArray, password: CharArray): OwnerCheck =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val json = decrypt(data, password)
+                val arr = json.getJSONArray("people")
+                val backupPersonIds = ArrayList<String>(arr.length())
+                for (i in 0 until arr.length()) backupPersonIds.add(arr.getJSONObject(i).optString("id"))
+                val owned = BackupOwnership.isOwnedByThisInstall(
+                    fileToken = json.optString("owner", "").ifEmpty { null },
+                    installToken = prefs.installTokenOrNull(),
+                    backupPersonIds = backupPersonIds,
+                    knownPersonIds = dao.allPeople().mapTo(HashSet()) { it.id },
+                )
+                if (owned) OwnerCheck.Owned else OwnerCheck.Foreign
+            }.getOrElse { e -> OwnerCheck.Error(readableError(e, "Could not read this backup.")) }
+        }
+
     suspend fun import(data: ByteArray, password: CharArray, replace: Boolean): ImportResult =
         withContext(Dispatchers.IO) {
             runCatching {
-                require(data.size > magic.size + 28) { "File is too small or corrupt." }
-                require(data.copyOfRange(0, magic.size).contentEquals(magic)) { "Not a Guardia backup file." }
-                var off = magic.size
-                val salt = data.copyOfRange(off, off + 16); off += 16
-                val iv = data.copyOfRange(off, off + 12); off += 12
-                val cipherText = data.copyOfRange(off, data.size)
-                val cipher = Cipher.getInstance("AES/GCM/NoPadding").apply {
-                    init(Cipher.DECRYPT_MODE, deriveKey(password, salt), GCMParameterSpec(128, iv))
-                }
-                val json = JSONObject(String(cipher.doFinal(cipherText), Charsets.UTF_8))
+                val json = decrypt(data, password)
 
                 if (replace) {
-                    dao.allPeople().forEach { dao.deletePerson(it.id) }
+                    // Delete each person *with* its samples and negatives — the entities declare no
+                    // foreign keys, so deleting the person alone would orphan those rows (they'd
+                    // bloat the DB, re-export into future backups, and skew the re-enroll prompt,
+                    // which counts total samples).
+                    dao.allPeople().forEach { p ->
+                        dao.deleteSamples(p.id)
+                        dao.deleteNegativesFor(p.id)
+                        dao.deletePerson(p.id)
+                    }
                 }
                 val peopleArr = json.getJSONArray("people")
                 var peopleCount = 0
@@ -164,14 +211,27 @@ class BackupManager @Inject constructor(
                 // wouldn't see the restored faces until the next app restart.
                 people.invalidate()
                 ImportResult.Success(peopleCount, samples.size) as ImportResult
-            }.getOrElse { e ->
-                val msg = when (e) {
-                    is javax.crypto.AEADBadTagException -> "Wrong password or corrupted file."
-                    else -> e.message ?: "Could not restore this backup."
-                }
-                ImportResult.Error(msg)
-            }
+            }.getOrElse { e -> ImportResult.Error(readableError(e, "Could not restore this backup.")) }
         }
+
+    /** Parses the container and decrypts the payload. Throws on a bad file or wrong password. */
+    private fun decrypt(data: ByteArray, password: CharArray): JSONObject {
+        require(data.size > magic.size + 28) { "File is too small or corrupt." }
+        require(data.copyOfRange(0, magic.size).contentEquals(magic)) { "Not a Guardia backup file." }
+        var off = magic.size
+        val salt = data.copyOfRange(off, off + 16); off += 16
+        val iv = data.copyOfRange(off, off + 12); off += 12
+        val cipherText = data.copyOfRange(off, data.size)
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding").apply {
+            init(Cipher.DECRYPT_MODE, deriveKey(password, salt), GCMParameterSpec(128, iv))
+        }
+        return JSONObject(String(cipher.doFinal(cipherText), Charsets.UTF_8))
+    }
+
+    private fun readableError(e: Throwable, fallback: String): String = when (e) {
+        is javax.crypto.AEADBadTagException -> "Wrong password or corrupted file."
+        else -> e.message ?: fallback
+    }
 
     private fun deriveKey(password: CharArray, salt: ByteArray): SecretKeySpec {
         val spec = PBEKeySpec(password, salt, 120_000, 256)

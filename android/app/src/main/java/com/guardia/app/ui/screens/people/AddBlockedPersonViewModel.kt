@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
+import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -17,22 +18,32 @@ import com.guardia.app.data.PeopleRepository
 import com.guardia.app.domain.model.GuardEvent
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import java.io.ByteArrayOutputStream
+import java.io.File
+import java.util.UUID
+import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.ByteArrayOutputStream
-import java.io.File
-import java.util.UUID
-import javax.inject.Inject
 
 /** A face extracted from an imported photo, ready to enroll as a blocked sample. */
 data class ExtractedFace(val thumbnail: ImageBitmap, val embedding: FloatArray)
 
+/**
+ * Marked `@Immutable` for Compose: it holds a `List`, and Compose treats every `List` as unstable
+ * because the interface allows a mutable implementation. Without the annotation, any composable
+ * reading this state is re-run on *every* recomposition of its parent, even when the state itself
+ * has not changed. The contents genuinely are never mutated after construction, so the promise is
+ * safe to make — and it is what lets Compose skip the subtree.
+ */
+@Immutable
 data class BlockedUiState(
     val name: String = "",
+    /** Self-declared sex ("MALE"/"FEMALE") or null, same encoding as [com.guardia.app.domain.model.Person.gender]. */
+    val gender: String? = null,
     val faces: List<ExtractedFace> = emptyList(),
     val processing: Boolean = false,
     val message: String? = null,
@@ -52,6 +63,8 @@ class AddBlockedPersonViewModel @Inject constructor(
     val ui: StateFlow<BlockedUiState> = _ui.asStateFlow()
 
     fun setName(value: String) { _ui.value = _ui.value.copy(name = value) }
+
+    fun setGender(value: String?) { _ui.value = _ui.value.copy(gender = value) }
 
     fun addPhotos(uris: List<Uri>) {
         if (uris.isEmpty()) return
@@ -103,6 +116,7 @@ class AddBlockedPersonViewModel @Inject constructor(
                 photoPath = photoPath,
                 embeddings = state.faces.map { it.embedding },
                 blocked = true,
+                gender = state.gender,
             )
             events.log(GuardEvent.Type.ENROLLMENT, "Added blocked person ${state.name.trim()} (${state.faces.size} samples)")
             _ui.value = state.copy(saved = true)

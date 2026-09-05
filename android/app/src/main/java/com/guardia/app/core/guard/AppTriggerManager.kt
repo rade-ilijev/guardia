@@ -2,7 +2,6 @@ package com.guardia.app.core.guard
 
 import android.content.Context
 import android.content.Intent
-import android.provider.Settings
 import com.guardia.app.core.appcheck.FaceCheckActivity
 import com.guardia.app.core.appcheck.OverlayController
 import com.guardia.app.core.appcheck.ScreenCaptureStore
@@ -48,9 +47,6 @@ class AppTriggerManager @Inject constructor(
      */
     @Volatile var checkInProgress = false
 
-    @Volatile private var cachedIme: String? = null
-    @Volatile private var imeCachedAt = 0L
-
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     init {
@@ -86,19 +82,7 @@ class AppTriggerManager @Inject constructor(
         if (pkg == context.packageName) return true
         if (pkg == "com.android.systemui") return true
         if (pkg == passedPackage) return true
-        return pkg == currentImePackage()
-    }
-
-    private fun currentImePackage(): String? {
-        val now = System.currentTimeMillis()
-        if (now - imeCachedAt > IME_CACHE_MS) {
-            cachedIme = runCatching {
-                Settings.Secure.getString(context.contentResolver, Settings.Secure.DEFAULT_INPUT_METHOD)
-                    ?.substringBefore('/')
-            }.getOrNull()
-            imeCachedAt = now
-        }
-        return cachedIme
+        return pkg == com.guardia.app.core.system.CurrentIme.packageName(context)
     }
 
     private fun launchCheck(pkg: String) {
@@ -134,9 +118,5 @@ class AppTriggerManager @Inject constructor(
             checkInProgress = false
             overlayController.hideCover()
         }
-    }
-
-    private companion object {
-        const val IME_CACHE_MS = 10_000L
     }
 }

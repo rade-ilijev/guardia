@@ -23,6 +23,8 @@ data class PersonEntity(
     val blocked: Boolean = false,
     /** Optional self-declared sex captured at enrollment ("MALE"/"FEMALE"), or null if unspecified. */
     val gender: String? = null,
+    /** Guest pass: epoch-ms after which this person is no longer trusted (null = permanent). */
+    val expiresAt: Long? = null,
 )
 
 @Entity(

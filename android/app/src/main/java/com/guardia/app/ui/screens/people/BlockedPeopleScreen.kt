@@ -13,7 +13,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material3.ExtendedFloatingActionButton
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -26,10 +25,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.guardia.app.ui.components.BannerTone
 import com.guardia.app.ui.components.GuardiaCard
 import com.guardia.app.ui.components.GuardiaScaffold
+import com.guardia.app.ui.components.HorizontalDivider
 import com.guardia.app.ui.components.InfoBanner
-import com.guardia.app.ui.components.BannerTone
 import com.guardia.app.ui.theme.Spacing
 
 @Composable

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    The languages Guardia ships. Android 13+ reads this to offer a per-app language in system
+    Settings, and the Play Store reads it to list the app's languages.
+
+    Only English today. It is declared anyway so that adding `values-xx/strings.xml` is the whole
+    of adding a language: no manifest change, no build change, nothing to remember later.
+-->
+<locale-config xmlns:android="http://schemas.android.com/apk/res/android">
+    <locale android:name="en" />
+</locale-config>

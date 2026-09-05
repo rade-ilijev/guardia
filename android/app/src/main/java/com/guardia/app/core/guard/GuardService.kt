@@ -18,20 +18,22 @@ import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
 import com.guardia.app.MainActivity
 import com.guardia.app.R
+import com.guardia.app.core.ml.AnalysisConfig
 import com.guardia.app.core.ml.BitmapUtils
 import com.guardia.app.core.ml.FacePipeline
 import com.guardia.app.core.system.TestNotifier
 import com.guardia.app.core.voice.VoiceController
 import com.guardia.app.data.AppPreferences
 import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import javax.inject.Inject
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 
 /**
  * Persistent foreground service running the guard loop: a headless CameraX
@@ -42,11 +44,14 @@ import javax.inject.Inject
 class GuardService : LifecycleService() {
 
     @Inject lateinit var facePipeline: FacePipeline
+    @Inject lateinit var faceEmbedder: com.guardia.app.core.ml.FaceEmbedder
     @Inject lateinit var rulesEngine: RulesEngine
     @Inject lateinit var responder: Responder
     @Inject lateinit var captureGate: CaptureGate
     @Inject lateinit var prefs: AppPreferences
     @Inject lateinit var peopleRepository: com.guardia.app.data.PeopleRepository
+    @Inject lateinit var eventsRepository: com.guardia.app.data.EventsRepository
+    @Inject lateinit var intruderRepository: com.guardia.app.data.IntruderRepository
     @Inject lateinit var entitlements: com.guardia.app.core.billing.EntitlementManager
     @Inject lateinit var appTriggerManager: AppTriggerManager
     @Inject lateinit var locationZoneManager: com.guardia.app.core.location.LocationZoneManager
@@ -114,11 +119,43 @@ class GuardService : LifecycleService() {
     /** Drives the poll loop's cadence: while the screen is off we can never capture, so idle slowly. */
     @Volatile private var screenInteractive = true
 
+    /** Effective shake-to-check after premium/location resolution; keeps the poll tight (see [nextSchedulerDelay]). */
+    @Volatile private var effectiveShake = false
+
+    // Trusted Wi-Fi: while connected to a network the user trusts, periodic checks pause
+    // (app-open triggers still run). Refreshed on the maintenance tick and on screen-on.
+    @Volatile private var trustedWifiOn = false
+    @Volatile private var trustedSsids: Set<String> = emptySet()
+    @Volatile private var onTrustedWifi = false
+
+    /** Re-evaluates the trusted-Wi-Fi state; re-plans the schedule when it flips. */
+    private fun refreshTrustedWifi() {
+        val now = trustedWifiOn &&
+            com.guardia.app.core.system.WifiTrust.onTrustedNetwork(this, trustedSsids)
+        if (now != onTrustedWifi) {
+            onTrustedWifi = now
+            GuardController.relaxedOnTrustedWifi.value = now
+            applyAll()
+        }
+    }
+
+    /** Wakes the scheduler out of a long sleep when an event makes an earlier check possible/needed. */
+    private val schedulerNudge =
+        kotlinx.coroutines.channels.Channel<Unit>(kotlinx.coroutines.channels.Channel.CONFLATED)
+
+    private fun nudgeScheduler() { schedulerNudge.trySend(Unit) }
+
+    /** Requests a forced capture at [at] (elapsedRealtime) and wakes the scheduler so it isn't missed. */
+    private fun scheduleForcedCapture(at: Long) {
+        forceCaptureAt = at
+        nudgeScheduler()
+    }
+
     /** Reacts to lock/unlock so the premium unlock ramp can re-arm each session. */
     private val screenReceiver = object : android.content.BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             when (intent?.action) {
-                Intent.ACTION_SCREEN_ON -> screenInteractive = true
+                Intent.ACTION_SCREEN_ON -> { screenInteractive = true; refreshTrustedWifi() }
                 Intent.ACTION_USER_PRESENT -> { screenInteractive = true; captureGate.onUnlocked() }
                 Intent.ACTION_SCREEN_OFF -> {
                     screenInteractive = false
@@ -126,6 +163,8 @@ class GuardService : LifecycleService() {
                     appTriggerManager.onScreenOff()
                 }
             }
+            // Screen state changes both the sleep budget and what's due (first-check-on-unlock).
+            nudgeScheduler()
         }
     }
 
@@ -135,7 +174,22 @@ class GuardService : LifecycleService() {
         lifecycleScope.launch { prefs.sensitivity.collectLatest { sensitivity = it } }
         lifecycleScope.launch { prefs.captureIntruders.collectLatest { captureIntruders = it } }
         lifecycleScope.launch { prefs.lowLightAction.collectLatest { lowLightAction = it } }
-        lifecycleScope.launch { prefs.voiceListeningMode.collectLatest { voiceMode = it } }
+        // Reconcile the voice service against the mode here (not just in onStartCommand): on a cold
+        // start the first DataStore emission lands *after* onStartCommand, so arming "Always" mode
+        // only there silently missed reboots; and a live mode change should arm/disarm immediately.
+        lifecycleScope.launch {
+            prefs.voiceListeningMode.collectLatest { mode ->
+                voiceMode = mode
+                if (mode == VOICE_ALWAYS && !voiceArmed) {
+                    VoiceController.start(this@GuardService)
+                    voiceArmed = true
+                } else if (mode != VOICE_ALWAYS && voiceArmed) {
+                    // Fallback mode re-arms on its own via the no-face streak.
+                    VoiceController.stop(this@GuardService)
+                    voiceArmed = false
+                }
+            }
+        }
         lifecycleScope.launch { prefs.testMode.collectLatest { testMode = it } }
         lifecycleScope.launch { prefs.lockOnUnknownFace.collectLatest { lockOnUnknown = it } }
         lifecycleScope.launch { prefs.lockOnBlockedPerson.collectLatest { lockOnBlocked = it } }
@@ -152,6 +206,8 @@ class GuardService : LifecycleService() {
         lifecycleScope.launch { prefs.checkRamp.collectLatest { checkRamp = it; applyAll() } }
         lifecycleScope.launch { prefs.shakeToCheck.collectLatest { shakeToCheck = it; applyAll() } }
         lifecycleScope.launch { prefs.locationModeEnabled.collectLatest { locationMode = it; applyAll() } }
+        lifecycleScope.launch { prefs.trustedWifiEnabled.collectLatest { trustedWifiOn = it; refreshTrustedWifi(); applyAll() } }
+        lifecycleScope.launch { prefs.trustedSsids.collectLatest { trustedSsids = it; refreshTrustedWifi(); applyAll() } }
         lifecycleScope.launch { locationZoneManager.policy.collectLatest { locationPolicy = it; applyAll() } }
         lifecycleScope.launch { entitlements.premium.collectLatest { applyAll() } }
 
@@ -204,7 +260,7 @@ class GuardService : LifecycleService() {
         val premium = entitlements.isPremium
         val locActive = locationActive()
 
-        val s = if (locActive) {
+        val resolved = if (locActive) {
             val p = locationPolicy
             when {
                 !p.guardEnabled -> Schedule(false, userResponsiveness, 0, false, emptyList(), false, false)
@@ -222,6 +278,13 @@ class GuardService : LifecycleService() {
         } else {
             globalSchedule(premium)
         }
+        // Trusted Wi-Fi overrides any schedule: on a network the user trusts, ALL automatic checks
+        // pause — periodic, first-on-unlock, the unlock ramp, and shake (a shake fires through the
+        // gate's immediate path, so leaving it enabled would leak checks past "relaxed"). Only
+        // app-open face checks remain, because a guarded app is guarded anywhere.
+        val s = if (onTrustedWifi) {
+            resolved.copy(intervalEnabled = false, firstCheck = false, shake = false, ramp = emptyList())
+        } else resolved
 
         captureGate.setResponsiveness(s.responsiveness)
         captureGate.setIntervalEnabled(s.intervalEnabled)
@@ -230,6 +293,9 @@ class GuardService : LifecycleService() {
         captureGate.setCustomIntervalSeconds(s.customInterval)
         captureGate.setRamp(s.ramp)
         resolvedLockOnNoFace = s.lockOnNoFace
+        effectiveShake = s.shake
+        // The schedule changed, so any in-flight long sleep may now be wrong — re-plan it.
+        nudgeScheduler()
 
         // Manage location sampling lifecycle.
         if (locActive) locationZoneManager.start() else locationZoneManager.stop()
@@ -256,16 +322,33 @@ class GuardService : LifecycleService() {
         }
         rulesEngine.reset()
         captureGate.start()
+        // Liveness bookkeeping for the watchdog: mark this run as live-and-not-cleanly-stopped so
+        // an OEM battery kill (which skips onDestroy) is detectable on the next app open.
+        lifecycleScope.launch {
+            runCatching {
+                prefs.setGuardStoppedCleanly(false)
+                prefs.setGuardHeartbeatAt(System.currentTimeMillis())
+            }
+        }
         if (hasCameraPermission()) startCaptureScheduler()
-        if (voiceMode == VOICE_ALWAYS) {
+        if (voiceMode == VOICE_ALWAYS && !voiceArmed) {
             VoiceController.start(this)
             voiceArmed = true
         }
+        // A security app must not degrade silently: if the face model failed to load, recognition
+        // runs on the weak pixel-descriptor fallback and the owner needs to know.
+        if (!faceEmbedder.usingModel) notifyDegradedRecognition()
         GuardController.onServiceState(GuardState.PROTECTED)
         return START_STICKY
     }
 
     override fun onDestroy() {
+        // A normal stop reaches onDestroy; a battery-manager kill doesn't. Record the clean stop
+        // on a scope that outlives this service so the watchdog doesn't cry wolf. (If the write
+        // races a process death, the heartbeat staleness check still bounds the false-positive.)
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+            runCatching { prefs.setGuardStoppedCleanly(true) }
+        }
         runCatching { unregisterReceiver(screenReceiver) }
         runCatching { com.guardia.app.core.system.BrightnessOverlay.hide(this) }
         locationZoneManager.stop()
@@ -276,7 +359,9 @@ class GuardService : LifecycleService() {
             VoiceController.stop(this)
             voiceArmed = false
         }
+        analysisExecutor.shutdown()
         isForeground = false
+        GuardController.relaxedOnTrustedWifi.value = false
         GuardController.onServiceState(GuardState.STOPPED)
         super.onDestroy()
     }
@@ -292,10 +377,11 @@ class GuardService : LifecycleService() {
 
         captureJob = lifecycleScope.launch {
             while (isActive) {
-                // While the screen is off we can't capture (CaptureGate requires interactive +
-                // unlocked), so poll slowly to avoid needless wakeups/binder calls; poll responsively
-                // once the screen is on so first-check-on-unlock and ramps stay snappy.
-                delay(if (screenInteractive) POLL_INTERVAL_MS else IDLE_POLL_INTERVAL_MS)
+                // Sleep as close to the next due check as safely possible instead of ticking on a
+                // fixed short interval; a nudge (unlock, schedule change, forced re-check) cuts the
+                // sleep short so nothing waits on a stale plan.
+                kotlinx.coroutines.withTimeoutOrNull(nextSchedulerDelay()) { schedulerNudge.receive() }
+                maybeRunMaintenance()
                 // A low-light re-check can request an immediate capture (just after we brighten the
                 // screen) instead of waiting for the next scheduled interval.
                 val forced = forceCaptureAt in 1..android.os.SystemClock.elapsedRealtime()
@@ -311,15 +397,117 @@ class GuardService : LifecycleService() {
         }
     }
 
+    /** Wall-clock of the last maintenance pass (heartbeat + digest); throttles DataStore writes. */
+    private var lastMaintenanceAt = 0L
+
+    /**
+     * Once a minute: write the liveness heartbeat (so a battery-manager kill is detectable on the
+     * next app open — see GuardWatchdog) and post the weekly protection digest when it's due.
+     */
+    private fun maybeRunMaintenance() {
+        val now = System.currentTimeMillis()
+        if (now - lastMaintenanceAt < MAINTENANCE_INTERVAL_MS) return
+        lastMaintenanceAt = now
+        lifecycleScope.launch {
+            runCatching { prefs.setGuardHeartbeatAt(now) }
+            runCatching { maybePostWeeklyDigest(now) }
+            // Evidence retention expires on the clock too. Same housekeeping tick, same reason:
+            // there is no event that means "this photo is now old enough to delete".
+            runCatching {
+                val days = prefs.evidenceRetentionDays.first()
+                val removed = intruderRepository.purgeOlderThan(days, now)
+                if (removed > 0) {
+                    eventsRepository.log(
+                        com.guardia.app.domain.model.GuardEvent.Type.INFO,
+                        "Deleted $removed intruder photo${if (removed == 1) "" else "s"} older than $days days",
+                    )
+                }
+            }
+            // Guest passes expire on the clock, not on an event — sweep them here.
+            runCatching {
+                if (peopleRepository.purgeExpiredGuests(now) > 0) {
+                    eventsRepository.log(
+                        com.guardia.app.domain.model.GuardEvent.Type.INFO,
+                        "Guest pass expired — guest removed",
+                    )
+                }
+            }
+        }
+        // Networks change without broadcasts we listen for; the minute tick is fresh enough.
+        runCatching { refreshTrustedWifi() }
+    }
+
+    private suspend fun maybePostWeeklyDigest(now: Long) {
+        if (!prefs.weeklyDigestEnabled.first()) return
+        val last = prefs.lastDigestAt.first()
+        if (last == 0L) {
+            // First run starts the weekly clock; the first digest arrives a week from now.
+            prefs.setLastDigestAt(now)
+            return
+        }
+        if (now - last < DIGEST_PERIOD_MS) return
+        prefs.setLastDigestAt(now)
+
+        val events = eventsRepository.events.first().filter { it.timestamp >= last }
+        val intruderLocks = events.count { it.type == com.guardia.app.domain.model.GuardEvent.Type.INTRUDER_LOCK }
+        val wrongUnlocks = events.count { it.type == com.guardia.app.domain.model.GuardEvent.Type.WRONG_UNLOCK }
+        val text = when {
+            intruderLocks == 0 && wrongUnlocks == 0 -> "All clear — no intruder events this week."
+            else -> buildString {
+                if (intruderLocks > 0) append("$intruderLocks intruder lock${if (intruderLocks == 1) "" else "s"}")
+                if (wrongUnlocks > 0) {
+                    if (isNotEmpty()) append(" · ")
+                    append("$wrongUnlocks wrong unlock${if (wrongUnlocks == 1) "" else "s"}")
+                }
+                append(" — details in Activity.")
+            }
+        }
+        val nm = getSystemService(NotificationManager::class.java) ?: return
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            nm.createNotificationChannel(
+                NotificationChannel(DIGEST_CHANNEL_ID, "Weekly summary", NotificationManager.IMPORTANCE_LOW),
+            )
+        }
+        val contentIntent = android.app.PendingIntent.getActivity(
+            this, 2, Intent(this, MainActivity::class.java), android.app.PendingIntent.FLAG_IMMUTABLE,
+        )
+        val notification = NotificationCompat.Builder(this, DIGEST_CHANNEL_ID)
+            .setContentTitle("Your week with Guardia")
+            .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+            .setSmallIcon(R.drawable.ic_stat_guardia)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setAutoCancel(true)
+            .setContentIntent(contentIntent)
+            .build()
+        runCatching { nm.notify(DIGEST_NOTIFICATION_ID, notification) }
+    }
+
+    /**
+     * How long the scheduler may sleep before re-evaluating. Screen off: a slow idle tick. Screen
+     * on: until the capture gate's next due check, clamped so an async trigger (app-open immediate
+     * request, keyguard state change) is still noticed within [MAX_POLL_INTERVAL_MS] — the gate's
+     * answer is advisory, [CaptureGate.shouldCapture] stays the source of truth. Shake-to-check
+     * flags captures from the sensor thread at any moment, so it keeps the legacy tight poll. A
+     * pending forced re-check (low-light retry / rapid confirm) has its own earlier deadline.
+     */
+    private fun nextSchedulerDelay(): Long {
+        if (!screenInteractive) return IDLE_POLL_INTERVAL_MS
+        val forceIn = if (forceCaptureAt > 0L) {
+            (forceCaptureAt - android.os.SystemClock.elapsedRealtime()).coerceAtLeast(MIN_POLL_INTERVAL_MS)
+        } else Long.MAX_VALUE
+        val gateIn = if (effectiveShake) POLL_INTERVAL_MS
+        else captureGate.nextDueDelayMs().coerceIn(MIN_POLL_INTERVAL_MS, MAX_POLL_INTERVAL_MS)
+        return minOf(forceIn, gateIn)
+    }
+
     /** Opens the camera, grabs a single (warmed-up) frame, then releases the camera right away. */
     private fun captureOnce() {
         val provider = cameraProvider ?: return
         if (!capturing.compareAndSet(false, true)) return
         captureStartedAt = android.os.SystemClock.elapsedRealtime()
 
-        val analysis = ImageAnalysis.Builder()
-            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-            .build()
+        val analysis = AnalysisConfig.builder().build()
         val handled = AtomicBoolean(false)
         val frameIndex = AtomicInteger(0)
 
@@ -394,8 +582,13 @@ class GuardService : LifecycleService() {
     private fun onFrame(bitmap: android.graphics.Bitmap, rotation: Int) {
         if (!analyzing.compareAndSet(false, true)) return
         lifecycleScope.launch {
+            // Rotate to upright exactly once; the pipeline, the low-light path, and any evidence
+            // JPEG all share this bitmap instead of each producing their own rotated copy.
+            // (When rotation is 0 this returns the source bitmap itself, so the two may be the
+            // same object — the cleanup below accounts for that.)
+            val upright = BitmapUtils.rotate(bitmap, rotation)
             try {
-                val analysis = facePipeline.analyze(bitmap, rotation, sensitivity)
+                val analysis = facePipeline.analyze(upright, 0, sensitivity)
                 // Dark / no-face fallback: arm the voice safeword so the owner can stop guarding by voice.
                 if (analysis.outcome == FacePipeline.Outcome.NO_FACE) {
                     noFaceStreak++
@@ -435,12 +628,12 @@ class GuardService : LifecycleService() {
                 } else analysis
                 when (rulesEngine.onAnalysis(effective, triggers)) {
                     RulesEngine.Decision.LOCK -> {
-                        // Save the upright (rotation-applied) frame so the stored selfie isn't sideways.
-                        // Encoding is best-effort: a failure here must never prevent the lock, so we
-                        // swallow it to null and still respond. The Responder locks before touching
-                        // this JPEG regardless of the "Capture intruders" setting.
+                        // Save the upright frame so the stored selfie isn't sideways. Encoding is
+                        // best-effort: a failure here must never prevent the lock, so we swallow it
+                        // to null and still respond. The Responder locks before touching this JPEG
+                        // regardless of the "Capture intruders" setting.
                         val jpeg = if (captureIntruders) {
-                            runCatching { BitmapUtils.toJpeg(BitmapUtils.rotate(bitmap, rotation)) }.getOrNull()
+                            runCatching { BitmapUtils.toJpeg(upright) }.getOrNull()
                         } else null
                         responder.onIntruder(jpeg, analysis, captureIntruders, testMode)
                     }
@@ -450,17 +643,25 @@ class GuardService : LifecycleService() {
                         // interval for the confirming frame, re-check almost immediately so a real
                         // intruder is confirmed and the device locks within ~1s.
                         if (isSuspicious(effective, triggers)) {
-                            forceCaptureAt = android.os.SystemClock.elapsedRealtime() + RAPID_CONFIRM_MS
+                            scheduleForcedCapture(android.os.SystemClock.elapsedRealtime() + RAPID_CONFIRM_MS)
                         }
                     }
                 }
                 // Low-light policy. Runs in test mode too (it only brightens — never locks — and
                 // posts preview notifications), so the behavior can be verified safely.
-                handleLowLight(analysis, bitmap, rotation)
+                handleLowLight(analysis, upright)
             } catch (t: Throwable) {
                 // Never let a single bad frame crash the guard coroutine and stop future checks.
                 android.util.Log.w("GuardService", "Frame analysis failed", t)
             } finally {
+                // A 1280x720 frame is ~3.7 MB, and guarding produces one every few seconds for
+                // hours. Nothing outlives this block — the pipeline returns plain data and the
+                // evidence JPEG is already encoded — so releasing them here keeps the guard
+                // service's heap flat instead of leaning on the collector to notice.
+                runCatching {
+                    if (!upright.isRecycled) upright.recycle()
+                    if (upright !== bitmap && !bitmap.isRecycled) bitmap.recycle()
+                }
                 analyzing.set(false)
             }
         }
@@ -482,8 +683,7 @@ class GuardService : LifecycleService() {
      */
     private suspend fun handleLowLight(
         analysis: FacePipeline.Analysis,
-        bitmap: android.graphics.Bitmap,
-        rotation: Int,
+        upright: android.graphics.Bitmap,
     ) {
         // Two dark cases both need brightening:
         //  - a face was found but its crop is too dark to trust (INCONCLUSIVE / LOW_LIGHT), and
@@ -492,7 +692,7 @@ class GuardService : LifecycleService() {
         //    so the face was never lit up and re-validated.
         val darkNoFace = analysis.outcome == FacePipeline.Outcome.NO_FACE &&
             lowLightAction != LOW_LIGHT_IGNORE &&
-            BitmapUtils.averageLuminance(bitmap) < DARK_FRAME_LUMA
+            BitmapUtils.averageLuminance(upright) < DARK_FRAME_LUMA
         val lowLight = (analysis.outcome == FacePipeline.Outcome.INCONCLUSIVE &&
             analysis.reason == FacePipeline.InconclusiveReason.LOW_LIGHT) || darkNoFace
         val now = android.os.SystemClock.elapsedRealtime()
@@ -530,7 +730,7 @@ class GuardService : LifecycleService() {
                 endLowLightEpisode(now)
                 if (lowLightAction == LOW_LIGHT_LOCK) {
                     val jpeg = if (captureIntruders) {
-                        runCatching { BitmapUtils.toJpeg(BitmapUtils.rotate(bitmap, rotation)) }.getOrNull()
+                        runCatching { BitmapUtils.toJpeg(upright) }.getOrNull()
                     } else null
                     // Responder respects testMode: locks for real, or just previews "would lock".
                     responder.onIntruder(jpeg, analysis, captureIntruders, testMode)
@@ -541,12 +741,58 @@ class GuardService : LifecycleService() {
         }
     }
 
+    /** Set once we've warned that brightening can't run, so a dark night doesn't spam warnings. */
+    private var warnedNoOverlayPermission = false
+
     /** Moves to a brightness phase: shows the matching overlay and schedules a quick re-check. */
     private fun enterLowLightPhase(phase: Int, now: Long, white: Boolean) {
         lowLightPhase = phase
         lowLightPhaseAt = now
-        com.guardia.app.core.system.BrightnessOverlay.show(this, white, LOW_LIGHT_OVERLAY_AUTOHIDE_MS)
-        forceCaptureAt = now + LOW_LIGHT_RECHECK_DELAY_MS
+        if (com.guardia.app.core.system.BrightnessOverlay.canDraw(this)) {
+            com.guardia.app.core.system.BrightnessOverlay.show(this, white, LOW_LIGHT_OVERLAY_AUTOHIDE_MS)
+        } else {
+            // The overlay is a silent no-op without "Display over other apps" — say so instead of
+            // claiming the screen was brightened. (Posting this first wins over the generic
+            // "brightening" test message thanks to the notify throttle.)
+            if (testMode) {
+                notifyLowLightTest(
+                    "Too dark — can't brighten",
+                    "Guardia needs \"Display over other apps\" to raise screen brightness. Allow it in Settings > Detection, or via the warning notification.",
+                )
+            }
+            notifyOverlayPermissionMissing()
+        }
+        scheduleForcedCapture(now + LOW_LIGHT_RECHECK_DELAY_MS)
+    }
+
+    /** One-time, tap-to-fix warning that low-light brightening is disabled by a missing permission. */
+    private fun notifyOverlayPermissionMissing() {
+        if (warnedNoOverlayPermission) return
+        warnedNoOverlayPermission = true
+        val nm = getSystemService(NotificationManager::class.java) ?: return
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            nm.createNotificationChannel(
+                NotificationChannel(WARNING_CHANNEL_ID, "Protection warnings", NotificationManager.IMPORTANCE_HIGH),
+            )
+        }
+        val settingsIntent = Intent(
+            android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+            android.net.Uri.parse("package:$packageName"),
+        )
+        val pi = android.app.PendingIntent.getActivity(
+            this, 1, settingsIntent, android.app.PendingIntent.FLAG_IMMUTABLE,
+        )
+        val notification = NotificationCompat.Builder(this, WARNING_CHANNEL_ID)
+            .setContentTitle("Can't brighten the screen")
+            .setContentText("Low-light checks want to raise brightness, but Guardia needs \"Display over other apps\". Tap to allow it.")
+            .setStyle(NotificationCompat.BigTextStyle())
+            .setSmallIcon(R.drawable.ic_stat_guardia)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_ERROR)
+            .setContentIntent(pi)
+            .setAutoCancel(true)
+            .build()
+        runCatching { nm.notify(OVERLAY_WARNING_NOTIFICATION_ID, notification) }
     }
 
     private fun endLowLightEpisode(now: Long) {
@@ -636,6 +882,15 @@ class GuardService : LifecycleService() {
             Intent(this, MainActivity::class.java),
             android.app.PendingIntent.FLAG_IMMUTABLE,
         )
+        // Stopping from the shade still demands the real PIN: this opens the same gate the Quick
+        // Settings tile uses, rather than stopping the service directly. An ongoing notification is
+        // visible on a locked phone, so a one-tap "stop" here would undo the whole app.
+        val stopIntent = android.app.PendingIntent.getActivity(
+            this,
+            3,
+            Intent(this, StopGuardActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            android.app.PendingIntent.FLAG_IMMUTABLE,
+        )
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(getString(R.string.app_name))
             .setContentText(getString(R.string.guard_notif_protected))
@@ -643,6 +898,7 @@ class GuardService : LifecycleService() {
             .setOngoing(true)
             .setContentIntent(contentIntent)
             .setPriority(NotificationCompat.PRIORITY_LOW)
+            .addAction(R.drawable.ic_stat_guardia, getString(R.string.guard_notif_stop), stopIntent)
             .build()
     }
 
@@ -657,9 +913,36 @@ class GuardService : LifecycleService() {
         }
     }
 
+    /** Warns the owner that the bundled face model didn't load and recognition is unreliable. */
+    private fun notifyDegradedRecognition() {
+        val nm = getSystemService(NotificationManager::class.java) ?: return
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            nm.createNotificationChannel(
+                NotificationChannel(WARNING_CHANNEL_ID, "Protection warnings", NotificationManager.IMPORTANCE_HIGH),
+            )
+        }
+        val notification = NotificationCompat.Builder(this, WARNING_CHANNEL_ID)
+            .setContentTitle("Face recognition degraded")
+            .setContentText("The on-device face model failed to load, so recognition is far less accurate. Reinstall Guardia to restore it.")
+            .setStyle(NotificationCompat.BigTextStyle())
+            .setSmallIcon(R.drawable.ic_stat_guardia)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_ERROR)
+            .build()
+        runCatching { nm.notify(DEGRADED_NOTIFICATION_ID, notification) }
+    }
+
     companion object {
         private const val CHANNEL_ID = "guardia_guarding"
+        private const val WARNING_CHANNEL_ID = "guardia_warnings"
         private const val NOTIFICATION_ID = 1001
+        private const val DEGRADED_NOTIFICATION_ID = 1005
+        private const val OVERLAY_WARNING_NOTIFICATION_ID = 1006
+        private const val DIGEST_CHANNEL_ID = "guardia_digest"
+        private const val DIGEST_NOTIFICATION_ID = 1007
+        /** Heartbeat + digest bookkeeping cadence (also the max staleness of the heartbeat). */
+        private const val MAINTENANCE_INTERVAL_MS = 60_000L
+        private const val DIGEST_PERIOD_MS = 7L * 24 * 60 * 60 * 1000
         private const val VOICE_ALWAYS = 1
         private const val VOICE_FALLBACK = 2
 
@@ -688,8 +971,12 @@ class GuardService : LifecycleService() {
         /** Delay before the confirming re-check after a suspicious frame (rapid intruder confirm). */
         private const val RAPID_CONFIRM_MS = 550L
 
-        /** How often the scheduler checks whether a capture is due (camera stays off meanwhile). */
+        /** Legacy tight poll, kept only while shake-to-check is armed (sensor sets flags async). */
         private const val POLL_INTERVAL_MS = 350L
+        /** Floor for a computed sleep so a hot loop can never spin. */
+        private const val MIN_POLL_INTERVAL_MS = 250L
+        /** Ceiling for a computed sleep so async triggers are noticed promptly even mid-cadence. */
+        private const val MAX_POLL_INTERVAL_MS = 1500L
         /** Slow poll while the screen is off — we can't capture then, so barely tick to save battery. */
         private const val IDLE_POLL_INTERVAL_MS = 3000L
         /** Frames discarded after opening the camera so auto-exposure can settle. */

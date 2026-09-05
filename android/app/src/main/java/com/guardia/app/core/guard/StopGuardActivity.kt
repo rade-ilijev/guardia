@@ -19,7 +19,6 @@ import androidx.compose.material.icons.filled.GppBad
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -39,13 +38,15 @@ import com.guardia.app.core.security.PinType
 import com.guardia.app.data.AppPreferences
 import com.guardia.app.ui.components.PinDots
 import com.guardia.app.ui.components.PinPad
+import com.guardia.app.ui.components.TextButton
 import com.guardia.app.ui.theme.GuardiaHeroGradient
-import com.guardia.app.ui.theme.GuardiaTheme
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import javax.inject.Inject
+import com.guardia.app.ui.components.glow
+import com.guardia.app.ui.theme.GuardiaAppTheme
 
 /**
  * PIN gate for turning guarding OFF from outside the app (Quick Settings tile). Without this,
@@ -60,6 +61,7 @@ class StopGuardActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        com.guardia.app.core.system.markSecure(this)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
             setShowWhenLocked(true)
             setTurnScreenOn(true)
@@ -71,7 +73,7 @@ class StopGuardActivity : ComponentActivity() {
         }
 
         setContent {
-            GuardiaTheme {
+            GuardiaAppTheme {
                 Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
                     com.guardia.app.ui.components.GuardiaBackdrop()
                     StopGuardContent(
@@ -148,7 +150,11 @@ private fun StopGuardContent(
         verticalArrangement = Arrangement.Center,
     ) {
         Box(
-            modifier = Modifier.size(80.dp).clip(CircleShape).background(GuardiaHeroGradient),
+            modifier = Modifier
+                .glow(MaterialTheme.colorScheme.primary, CircleShape, radius = 24.dp, alpha = 0.5f)
+                .size(80.dp)
+                .clip(CircleShape)
+                .background(GuardiaHeroGradient),
             contentAlignment = Alignment.Center,
         ) {
             Icon(Icons.Filled.GppBad, contentDescription = null, tint = Color.White, modifier = Modifier.size(40.dp))

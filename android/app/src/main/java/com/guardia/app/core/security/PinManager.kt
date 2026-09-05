@@ -3,6 +3,7 @@ package com.guardia.app.core.security
 import java.security.MessageDigest
 import java.security.SecureRandom
 import java.util.Base64
+import java.util.Locale
 import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.PBEKeySpec
 
@@ -26,8 +27,63 @@ object PinManager {
     private val encoder = Base64.getEncoder()
     private val decoder = Base64.getDecoder()
 
+    /**
+     * Alphabet for recovery codes: digits and uppercase letters with the pairs people mistranscribe
+     * removed — no 0/O, no 1/I/L, no 8/B, no 5/S, no 2/Z. A code is written on paper and typed back
+     * months later, often by someone reading their own handwriting, so ambiguity is a real failure
+     * mode rather than a theoretical one.
+     */
+    private const val CODE_ALPHABET = "34679ACDEFGHJKMNPQRTUVWXY"
+
+    /** Characters per group, and groups per code: 12 characters total. */
+    private const val CODE_GROUP = 4
+    private const val CODE_GROUPS = 3
+
+    /**
+     * Generates a recovery code such as `AH7K-M3PQ-XR49`.
+     *
+     * 12 characters from a 25-symbol alphabet is about 56 bits of entropy — far beyond a 6-digit
+     * PIN, which matters because this credential is not rate-limited by the same lockout the PIN
+     * uses and is meant to survive being written down and stored somewhere less careful.
+     */
+    fun newRecoveryCode(): String {
+        val random = SecureRandom()
+        return (0 until CODE_GROUPS).joinToString("-") {
+            buildString {
+                repeat(CODE_GROUP) { append(CODE_ALPHABET[random.nextInt(CODE_ALPHABET.length)]) }
+            }
+        }
+    }
+
+    /**
+     * Canonical form for hashing and comparison: uppercase, with every character outside the
+     * alphabet dropped. The user can type it with or without dashes, in either case, with stray
+     * spaces from a paste — all of those verify.
+     *
+     * Upper-cased in [Locale.ROOT], never the device's locale. A canonical form that changes with
+     * the phone's language is a credential that stops matching when someone travels or switches
+     * language: in Turkish, `"i".uppercase()` is `İ`, not `I`. The stored hash was computed from
+     * this function's output, so the mapping has to be the same everywhere, forever.
+     */
+    fun normalizeRecoveryCode(input: String): String =
+        input.uppercase(Locale.ROOT).filter { it in CODE_ALPHABET }
+
+    /** True when [input] could be a complete code, so the UI knows when to attempt verification. */
+    fun looksLikeRecoveryCode(input: String): Boolean =
+        normalizeRecoveryCode(input).length == CODE_GROUP * CODE_GROUPS
+
     fun newSalt(): String {
         val bytes = ByteArray(16)
+        SecureRandom().nextBytes(bytes)
+        return encoder.encodeToString(bytes)
+    }
+
+    /**
+     * A 256-bit random opaque identifier. Used for the install token that Guardia embeds in the
+     * backups it exports; unlike a salt it is a secret, so it is generated at full key length.
+     */
+    fun newToken(): String {
+        val bytes = ByteArray(32)
         SecureRandom().nextBytes(bytes)
         return encoder.encodeToString(bytes)
     }

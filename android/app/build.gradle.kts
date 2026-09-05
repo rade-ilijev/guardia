@@ -19,12 +19,14 @@ val signingProps = Properties().apply {
 
 android {
     namespace = "com.guardia.app"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.guardia.app"
         minSdk = 26
-        targetSdk = 35
+        // Google Play has required API 36 (Android 16) for all new submissions and updates
+        // since 31 August 2026 — a build targeting 35 is rejected at upload.
+        targetSdk = 36
         versionCode = 2
         versionName = "1.0.1"
 
@@ -32,6 +34,11 @@ android {
 
         // Picovoice AccessKey (set picovoice.accessKey in local.properties). Empty disables voice.
         buildConfigField("String", "PICOVOICE_ACCESS_KEY", "\"${localProps.getProperty("picovoice.accessKey", "")}\"")
+
+        // SHA-256 of the release signing certificate, for on-device repackaging detection
+        // (IntegrityGuard). Set signing.expectedSha256 in signing.properties once you have the
+        // upload cert; empty means "not pinned" so debug/unconfigured builds never false-alarm.
+        buildConfigField("String", "EXPECTED_SIGNING_SHA256", "\"${signingProps.getProperty("expectedSha256", "")}\"")
     }
 
     // Two distribution variants:
@@ -93,6 +100,13 @@ android {
     androidResources {
         noCompress += "tflite"
     }
+    // Ship only the language, density and ABI resources each device actually needs.
+    bundle {
+        language { enableSplit = true }
+        density { enableSplit = true }
+        abi { enableSplit = true }
+    }
+
     // Store native libraries uncompressed and page-aligned so they load on
     // Android 15+ devices that use a 16 KB memory page size.
     packaging {
@@ -100,13 +114,21 @@ android {
             useLegacyPackaging = false
         }
         resources {
-            // JavaMail / activation / jakarta.inject ship duplicate license metadata.
+            // JavaMail / activation / jakarta.inject ship duplicate license metadata, and the
+            // Kotlin/coroutines artifacts ship module metadata and debug probes that only the
+            // compiler and the debugger read. (The `kotlin/` builtins are deliberately *not*
+            // stripped — kotlin-reflect needs them, and nothing here is worth that risk.)
+            // None of the entries below is used at runtime, so they are stripped:
+            // less to unpack on install, and a smaller download.
             excludes += setOf(
                 "META-INF/NOTICE.md",
                 "META-INF/LICENSE.md",
                 "META-INF/NOTICE",
                 "META-INF/LICENSE",
                 "META-INF/DEPENDENCIES",
+                "META-INF/*.version",
+                "META-INF/*.kotlin_module",
+                "DebugProbesKt.bin",
             )
         }
     }
@@ -143,6 +165,8 @@ dependencies {
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.androidx.security.crypto)
+    // NOTE: no WorkManager — guarding runs via a foreground service, and its startup
+    // ContentProvider costs launch time, so we don't pull it in.
 
     // Room
     implementation(libs.androidx.room.runtime)
@@ -173,6 +197,10 @@ dependencies {
 
     // Billing (subscription)
     implementation(libs.billing.ktx)
+
+    // Baseline/cloud ART profile installation (startup + jank; profiles land via Play or a
+    // future macrobenchmark module — see the perf notes in DESIGN.md).
+    implementation(libs.androidx.profileinstaller)
 
     // Test
     testImplementation(libs.junit)

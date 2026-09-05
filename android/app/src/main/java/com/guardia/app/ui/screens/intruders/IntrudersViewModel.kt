@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
+import com.guardia.app.data.EvidenceThumbnails
 
 @HiltViewModel
 class IntrudersViewModel @Inject constructor(
@@ -32,6 +33,7 @@ class IntrudersViewModel @Inject constructor(
     private val quality: FaceQualityAnalyzer,
     private val embedder: FaceEmbedder,
     private val events: EventsRepository,
+    private val thumbnails: EvidenceThumbnails,
 ) : ViewModel() {
 
     val captures: StateFlow<List<IntruderCapture>> = repository.captures
@@ -40,9 +42,11 @@ class IntrudersViewModel @Inject constructor(
     val peopleList: StateFlow<List<Person>> = people.people
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    suspend fun loadBitmap(path: String): ImageBitmap? = withContext(Dispatchers.IO) {
-        decode(path)?.asImageBitmap()
-    }
+    /** Full-resolution capture for the viewer. */
+    suspend fun loadBitmap(path: String): ImageBitmap? = thumbnails.full(path)
+
+    /** Cached thumbnail sized for a tile; see [EvidenceThumbnails]. */
+    suspend fun loadThumbnail(path: String, targetPx: Int): ImageBitmap? = thumbnails.thumbnail(path, targetPx)
 
     private fun decode(path: String): Bitmap? {
         val bytes = repository.decrypt(path) ?: return null
@@ -122,10 +126,16 @@ class IntrudersViewModel @Inject constructor(
     }
 
     fun delete(capture: IntruderCapture) {
-        viewModelScope.launch { repository.delete(capture.id) }
+        viewModelScope.launch {
+            repository.delete(capture.id)
+            thumbnails.evictAll()
+        }
     }
 
     fun clear() {
-        viewModelScope.launch { repository.clear() }
+        viewModelScope.launch {
+            repository.clear()
+            thumbnails.evictAll()
+        }
     }
 }

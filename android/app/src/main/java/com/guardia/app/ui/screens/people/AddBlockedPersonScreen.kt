@@ -4,9 +4,11 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -23,13 +25,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.foundation.clickable
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -42,9 +39,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.guardia.app.ui.components.Button
+import com.guardia.app.ui.components.CircularProgressIndicator
+import com.guardia.app.ui.components.FilterChip
 import com.guardia.app.ui.components.GuardiaCard
 import com.guardia.app.ui.components.GuardiaScaffold
 import com.guardia.app.ui.components.InfoBanner
+import com.guardia.app.ui.components.OutlinedButton
+import com.guardia.app.ui.components.OutlinedTextField
 import com.guardia.app.ui.theme.Spacing
 
 @Composable
@@ -78,6 +80,22 @@ fun AddBlockedPersonScreen(
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("Gender", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.size(Spacing.sm))
+                listOf("MALE" to "Male", "FEMALE" to "Female").forEach { (key, label) ->
+                    FilterChip(
+                        selected = ui.gender == key,
+                        onClick = { viewModel.setGender(if (ui.gender == key) null else key) },
+                        label = { Text(label) },
+                    )
+                }
+            }
 
             OutlinedButton(
                 onClick = { picker.launch("image/*") },

@@ -8,12 +8,12 @@ import com.guardia.app.data.db.PersonEntity
 import com.guardia.app.domain.model.EnrolledFace
 import com.guardia.app.domain.model.FaceSample
 import com.guardia.app.domain.model.Person
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.map
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 
 @Singleton
 class PeopleRepository @Inject constructor(
@@ -23,6 +23,7 @@ class PeopleRepository @Inject constructor(
     // Invalidated on any write that changes which embeddings/labels the recognizer should use.
     @Volatile private var enrolledCache: List<EnrolledFace>? = null
     @Volatile private var negativesCache: List<VersionedEmbedding>? = null
+    @Volatile private var prototypeCache: List<PersonPrototype>? = null
 
     /** An embedding tagged with the pipeline version that produced it. */
     data class VersionedEmbedding(val embedding: FloatArray, val modelVersion: Int)
@@ -30,7 +31,30 @@ class PeopleRepository @Inject constructor(
     private fun invalidateCaches() {
         enrolledCache = null
         negativesCache = null
+        prototypeCache = null
     }
+
+    /**
+     * One person's enrolled faces for a single pipeline version, pre-grouped and with the
+     * quality-weighted centroid already computed.
+     *
+     * The recognizer used to do this grouping and this centroid arithmetic *on every camera frame*:
+     * a `groupBy` over every sample in the database, then a fresh mean vector per person, several
+     * times a minute for as long as guarding is on. None of it changes between frames — it only
+     * changes when the enrollment does — so it is computed here instead and thrown away by
+     * [invalidateCaches] on any write.
+     */
+    data class PersonPrototype(
+        val personId: String,
+        val name: String,
+        val blocked: Boolean,
+        val modelVersion: Int,
+        val embeddings: List<FloatArray>,
+        /** Per-sample quality weights, parallel to [embeddings]. */
+        val weights: FloatArray,
+        /** Quality-weighted, L2-normalized mean of [embeddings]. */
+        val centroid: FloatArray,
+    )
 
     /** Public cache-drop for writers that bypass this repository (e.g. backup restore via the DAO). */
     fun invalidate() = invalidateCaches()
@@ -57,6 +81,7 @@ class PeopleRepository @Inject constructor(
         enabled = person.enabled,
         blocked = person.blocked,
         gender = person.gender,
+        expiresAt = person.expiresAt,
     )
 
     /** Creates a person with optional face embeddings. Returns the new id. */
@@ -66,6 +91,7 @@ class PeopleRepository @Inject constructor(
         embeddings: List<FloatArray> = emptyList(),
         blocked: Boolean = false,
         gender: String? = null,
+        expiresAt: Long? = null,
     ): String {
         val id = UUID.randomUUID().toString()
         dao.insertPerson(
@@ -76,11 +102,19 @@ class PeopleRepository @Inject constructor(
                 createdAt = System.currentTimeMillis(),
                 blocked = blocked,
                 gender = gender,
+                expiresAt = expiresAt,
             )
         )
         if (embeddings.isNotEmpty()) addSamples(id, embeddings)
         invalidateCaches()
         return id
+    }
+
+    /** Deletes guest passes whose time is up; returns how many were removed. */
+    suspend fun purgeExpiredGuests(now: Long = System.currentTimeMillis()): Int {
+        val expired = dao.allPeople().filter { it.expiresAt != null && it.expiresAt <= now }
+        expired.forEach { remove(it.id) }
+        return expired.size
     }
 
     suspend fun setGender(id: String, gender: String?) {
@@ -211,17 +245,49 @@ class PeopleRepository @Inject constructor(
      */
     suspend fun enrolledFaces(): List<EnrolledFace> {
         enrolledCache?.let { return it }
+        val now = System.currentTimeMillis()
         val byId = dao.allPeople().associateBy { it.id }
         return dao.allSamples()
             .mapNotNull { sample ->
                 val p = byId[sample.personId] ?: return@mapNotNull null
                 if (!p.blocked && !p.enabled) return@mapNotNull null
+                // An expired guest pass no longer authorizes anyone (the purge deletes them soon
+                // after, but never trust an expired face even before that happens).
+                if (!p.blocked && p.expiresAt != null && p.expiresAt <= now) return@mapNotNull null
                 EnrolledFace(
                     p.id, p.name, EmbeddingMath.fromBytes(sample.embedding),
                     blocked = p.blocked, modelVersion = sample.modelVersion,
+                    quality = sample.quality,
                 )
             }
             .also { enrolledCache = it }
+    }
+
+    /**
+     * Enrolled faces grouped by (person, pipeline version), with centroids precomputed. Cached for
+     * the same lifetime as [enrolledFaces]; see [PersonPrototype] for why this lives here.
+     */
+    suspend fun prototypes(): List<PersonPrototype> {
+        prototypeCache?.let { return it }
+        val built = enrolledFaces()
+            .groupBy { it.personId to it.modelVersion }
+            .map { (key, faces) ->
+                val (personId, version) = key
+                val embeddings = faces.map { it.embedding }
+                val weights = FloatArray(faces.size) { faces[it].quality }
+                PersonPrototype(
+                    personId = personId,
+                    name = faces.first().name,
+                    blocked = faces.first().blocked,
+                    modelVersion = version,
+                    embeddings = embeddings,
+                    weights = weights,
+                    centroid = if (embeddings.size > 1) EmbeddingMath.weightedCentroid(embeddings, weights)
+                    else embeddings.firstOrNull() ?: FloatArray(0),
+                )
+            }
+        prototypeCache = built
+        return built
     }
 
     /**

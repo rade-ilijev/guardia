@@ -16,3 +16,8 @@ local.properties
 signing.properties
 keystore/
 RELEASE_SIGNING_CREDENTIALS.txt
+
+# Scratch and hand-off artefacts, not part of the source tree.
+/_to_delete/
+/guardia-history.bundle
+.kotlin/

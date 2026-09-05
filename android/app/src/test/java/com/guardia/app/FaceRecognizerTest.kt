@@ -61,9 +61,9 @@ class FaceRecognizerTest {
     private fun person(id: String, enabled: Boolean = true, blocked: Boolean = false) =
         PersonEntity(id = id, name = id, photoPath = null, createdAt = 0L, enabled = enabled, blocked = blocked)
 
-    private fun sample(personId: String, vec: FloatArray) =
+    private fun sample(personId: String, vec: FloatArray, quality: Float = 1f, tag: String = "") =
         FaceSampleEntity(
-            "s-$personId", personId, EmbeddingMath.toBytes(EmbeddingMath.l2Normalize(vec)), 1f, 0L,
+            "s-$personId$tag", personId, EmbeddingMath.toBytes(EmbeddingMath.l2Normalize(vec)), quality, 0L,
             modelVersion = EmbeddingMath.VERSION,
         )
 
@@ -252,5 +252,136 @@ class FaceRecognizerTest {
         assertFalse(match.blocked)
         assertEquals("owner", match.personId)
     }
-}
 
+    // ---------------------------------------------------------------------------------------------
+    // Impostor margin: a match must beat the best *known non-owner* face, not just the threshold.
+    // ---------------------------------------------------------------------------------------------
+
+    @Test
+    fun identify_rejectsWhenADeclinedFaceIsEssentiallyTied() = runBlocking {
+        // The owner is fractionally the better match, so the old rule ("reject only if a declined
+        // face scores *higher*") would have authenticated. But the probe is a virtual tie with a
+        // face a human already looked at and said was not this person, which is exactly the
+        // situation where authenticating is a coin-flip. The margin rule refuses.
+        val dao = FakeDao(
+            mutableListOf(person("owner")),
+            mutableListOf(sample("owner", floatArrayOf(1f, 0f, 0f))),
+            mutableListOf(neg(floatArrayOf(0.99f, 0.141f, 0f))),
+        )
+        val rec = FaceRecognizer(PeopleRepository(dao))
+        val match = rec.identifyV(floatArrayOf(1f, 0f, 0f), 0.5f)
+        assertFalse("a near-tie with a declined look-alike must not authenticate", match.matched)
+    }
+
+    @Test
+    fun identify_stillMatchesWhenOwnerClearsImpostorByAMargin() = runBlocking {
+        val dao = FakeDao(
+            mutableListOf(person("owner"), person("sibling", blocked = true)),
+            mutableListOf(
+                sample("owner", floatArrayOf(1f, 0f, 0f)),
+                sample("sibling", floatArrayOf(0.7f, 0.71f, 0f)),
+            ),
+        )
+        val rec = FaceRecognizer(PeopleRepository(dao))
+        val match = rec.identifyV(floatArrayOf(0.99f, 0.14f, 0f), 0.5f)
+        assertTrue(match.matched)
+        assertEquals("owner", match.personId)
+        assertTrue("a clear win should report a positive margin", match.margin > 0f)
+    }
+
+    @Test
+    fun identify_marginIsZeroOnANonMatch() = runBlocking {
+        val dao = FakeDao(
+            mutableListOf(person("alice")),
+            mutableListOf(sample("alice", floatArrayOf(1f, 0f, 0f))),
+        )
+        val rec = FaceRecognizer(PeopleRepository(dao))
+        assertEquals(0f, rec.identifyV(floatArrayOf(0f, 1f, 0f), 0.5f).margin, 1e-6f)
+    }
+
+    @Test
+    fun identify_lowSensitivityRelaxesTheImpostorMargin() = runBlocking {
+        // The required margin scales with sensitivity, so a user who has deliberately loosened
+        // recognition also loosens the tie-break rather than hitting an invisible second threshold.
+        val dao = FakeDao(
+            mutableListOf(person("owner")),
+            mutableListOf(sample("owner", floatArrayOf(1f, 0f, 0f))),
+            mutableListOf(neg(floatArrayOf(0.99f, 0.141f, 0f))),
+        )
+        val rec = FaceRecognizer(PeopleRepository(dao))
+        assertTrue(rec.identifyV(floatArrayOf(1f, 0f, 0f), 0f).matched)
+    }
+
+    @Test
+    fun identify_reportsFullMarginWhenNoImpostorIsEnrolled() = runBlocking {
+        val dao = FakeDao(
+            mutableListOf(person("alice")),
+            mutableListOf(sample("alice", floatArrayOf(1f, 0f, 0f))),
+        )
+        val rec = FaceRecognizer(PeopleRepository(dao))
+        assertEquals(1f, rec.identifyV(floatArrayOf(0.98f, 0.05f, 0f), 0.5f).margin, 1e-6f)
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Multi-sample scoring: top-K mean over samples, blended with the quality-weighted centroid.
+    // ---------------------------------------------------------------------------------------------
+
+    @Test
+    fun identify_oneLuckySampleDoesNotCarryALookAlike() = runBlocking {
+        // The impostor's cluster sits away from the probe, but one stray enrolled sample happens to
+        // land right on it. Scoring on the single best sample would authenticate; averaging the best
+        // few (and blending with the centroid) does not.
+        val dao = FakeDao(
+            mutableListOf(person("alice")),
+            mutableListOf(
+                sample("alice", floatArrayOf(0f, 1f, 0f), tag = "-a"),
+                sample("alice", floatArrayOf(0f, 1f, 0.05f), tag = "-b"),
+                sample("alice", floatArrayOf(1f, 0f, 0f), tag = "-c"),
+            ),
+        )
+        val rec = FaceRecognizer(PeopleRepository(dao))
+        val match = rec.identifyV(floatArrayOf(1f, 0f, 0f), 0.5f)
+        assertFalse(match.matched)
+    }
+
+    @Test
+    fun identify_consistentSamplesStillMatch() = runBlocking {
+        val dao = FakeDao(
+            mutableListOf(person("alice")),
+            mutableListOf(
+                sample("alice", floatArrayOf(1f, 0.02f, 0f), tag = "-a"),
+                sample("alice", floatArrayOf(1f, 0f, 0.03f), tag = "-b"),
+                sample("alice", floatArrayOf(0.99f, 0.05f, 0f), tag = "-c"),
+            ),
+        )
+        val rec = FaceRecognizer(PeopleRepository(dao))
+        val match = rec.identifyV(floatArrayOf(1f, 0f, 0f), 0.5f)
+        assertTrue(match.matched)
+        assertEquals("alice", match.personId)
+    }
+
+    @Test
+    fun identify_lowQualitySampleScoresBelowAnIdenticalHighQualityOne() = runBlocking {
+        val probe = floatArrayOf(1f, 0f, 0f)
+        val good = FaceRecognizer(
+            PeopleRepository(
+                FakeDao(
+                    mutableListOf(person("alice")),
+                    mutableListOf(sample("alice", floatArrayOf(0.8f, 0.6f, 0f), quality = 1f)),
+                ),
+            ),
+        ).identifyV(probe, 0.5f)
+        val weak = FaceRecognizer(
+            PeopleRepository(
+                FakeDao(
+                    mutableListOf(person("alice")),
+                    mutableListOf(sample("alice", floatArrayOf(0.8f, 0.6f, 0f), quality = 0.1f)),
+                ),
+            ),
+        ).identifyV(probe, 0.5f)
+        assertTrue(
+            "a sample captured badly should carry less weight than the same face captured well",
+            weak.similarity < good.similarity,
+        )
+    }
+}

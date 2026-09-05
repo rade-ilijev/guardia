@@ -16,21 +16,19 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
+import com.guardia.app.data.EvidenceThumbnails
 
 @HiltViewModel
 class ActivityViewModel @Inject constructor(
     private val repository: EventsRepository,
-    private val intruders: IntruderRepository,
+    private val thumbnails: EvidenceThumbnails,
 ) : ViewModel() {
 
     val events: StateFlow<List<GuardEvent>> = repository.events
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    /** Decrypts the encrypted capture at [path] into a thumbnail, or null if unavailable. */
-    suspend fun loadThumbnail(path: String): ImageBitmap? = withContext(Dispatchers.IO) {
-        val bytes = intruders.decrypt(path) ?: return@withContext null
-        runCatching { BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap() }.getOrNull()
-    }
+    /** A cached, size-appropriate thumbnail of the capture at [path], or null if unavailable. */
+    suspend fun loadThumbnail(path: String, targetPx: Int): ImageBitmap? = thumbnails.thumbnail(path, targetPx)
 
     fun clear() {
         viewModelScope.launch { repository.clear() }

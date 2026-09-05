@@ -40,6 +40,7 @@ class AppLockViewModel @Inject constructor(
         viewModelScope.launch {
             val list = withContext(Dispatchers.IO) {
                 val pm = context.packageManager
+                val collator = java.text.Collator.getInstance()
                 val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
                 pm.queryIntentActivities(intent, 0)
                     .asSequence()
@@ -52,7 +53,10 @@ class AppLockViewModel @Inject constructor(
                         }.getOrDefault(pkg)
                         InstalledApp(pkg, label)
                     }
-                    .sortedBy { it.label.lowercase() }
+                    // Collated, not lowercased: sorting user-visible names by their lowercase
+                    // form puts every accented letter after Z, so a German or Swedish user's app
+                    // list comes out in an order that looks broken to them.
+                    .sortedWith(Comparator { a, b -> collator.compare(a.label, b.label) })
                     .toList()
             }
             apps.value = list

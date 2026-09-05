@@ -2,16 +2,14 @@ package com.guardia.app.ui.screens.settings
 
 import android.Manifest
 import android.net.Uri
-import com.guardia.app.R
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -22,6 +20,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bolt
@@ -30,33 +30,22 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.WorkspacePremium
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.FilterChip
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import com.guardia.app.ui.theme.Spacing
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -74,21 +63,33 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.drawable.toBitmap
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.guardia.app.R
 import com.guardia.app.core.system.DeviceAdminManager
 import com.guardia.app.ui.components.BannerTone
+import com.guardia.app.ui.components.Button
+import com.guardia.app.ui.components.FilterChip
 import com.guardia.app.ui.components.GuardiaScaffold
 import com.guardia.app.ui.components.InfoBanner
+import com.guardia.app.ui.components.OutlinedButton
+import com.guardia.app.ui.components.OutlinedTextField
 import com.guardia.app.ui.components.RadioRow
 import com.guardia.app.ui.components.RowDivider
 import com.guardia.app.ui.components.SettingsColumn
 import com.guardia.app.ui.components.SettingsGroup
+import com.guardia.app.ui.components.ShTabs
 import com.guardia.app.ui.components.SliderRow
+import com.guardia.app.ui.components.Switch
 import com.guardia.app.ui.components.SwitchRow
+import com.guardia.app.ui.components.TextButton
+import com.guardia.app.ui.theme.Guardia
+import com.guardia.app.ui.theme.Spacing
 import kotlin.math.roundToInt
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import com.guardia.app.ui.components.rememberAccessibilityOptIn
+import androidx.compose.material.icons.filled.Key
 
 @Composable
 fun SettingsDetailScreen(
@@ -116,6 +117,8 @@ fun SettingsDetailScreen(
                 "scanner" -> ScannerSection()
                 "cameramic" -> CameraMicSection()
                 "pins" -> PinsSection()
+                "powersetup" -> PowerSetupSection()
+                "appearance" -> AppearanceSection()
                 "account" -> AccountSection(onUpgrade = onUpgrade)
                 else -> InfoBanner("This section is part of the roadmap.", Icons.Filled.Info)
             }
@@ -123,14 +126,16 @@ fun SettingsDetailScreen(
     }
 }
 
+/**
+ * Upgrade call-to-action.
+ *
+ * Every caller sits in an `else` branch that only runs when the user is *not* premium, and
+ * [com.guardia.app.core.billing.EntitlementManager] currently reports premium for everyone — so
+ * these are already unreachable. Emitting nothing makes that guaranteed rather than incidental
+ * while the paid tier is switched off.
+ */
 @Composable
-private fun UpgradeButton(onUpgrade: () -> Unit) {
-    Button(onClick = onUpgrade, modifier = Modifier.fillMaxWidth().height(48.dp)) {
-        Icon(Icons.Filled.WorkspacePremium, contentDescription = null)
-        Spacer(Modifier.width(Spacing.sm))
-        Text("See Guardia Premium")
-    }
-}
+private fun UpgradeButton(onUpgrade: () -> Unit) = Unit
 
 @Composable
 private fun GuardingSection(viewModel: SettingsViewModel, onUpgrade: () -> Unit = {}) {
@@ -156,15 +161,17 @@ private fun GuardingSection(viewModel: SettingsViewModel, onUpgrade: () -> Unit 
         )
     }
 
+    TrustedWifiGroup(viewModel)
+
     if (intervalEnabled) {
         val usingCustom = premium && customInterval > 0
         // The profile picker and the custom interval are two ways to set the same thing, so only
         // show the profiles when a custom interval isn't overriding them.
         if (!usingCustom) {
             val labels = listOf(
-                Triple("Battery saver", "A check every 5 minutes while unlocked.", 0),
-                Triple("Balanced", "A check every 2.5 minutes while unlocked.", 1),
-                Triple("Max security", "A check every minute while unlocked.", 2),
+                Triple("Battery saver", "A check about every 90 seconds while unlocked.", 0),
+                Triple("Balanced", "A check about every 25 seconds while unlocked.", 1),
+                Triple("Max security", "A check every few seconds while unlocked.", 2),
             )
             SettingsGroup(title = "How often to check") {
                 labels.forEachIndexed { index, (label, sub, value) ->
@@ -265,18 +272,12 @@ private fun RampEditor(ramp: List<Int>, onChange: (List<Int>) -> Unit) {
 @Composable
 private fun SettingsSourceToggle(useDefault: Boolean, onChange: (Boolean) -> Unit) {
     com.guardia.app.ui.components.SectionHeader("Settings here", premium = true)
-    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-        SegmentedButton(
-            selected = useDefault,
-            onClick = { onChange(true) },
-            shape = SegmentedButtonDefaults.itemShape(0, 2),
-        ) { Text("Use default") }
-        SegmentedButton(
-            selected = !useDefault,
-            onClick = { onChange(false) },
-            shape = SegmentedButtonDefaults.itemShape(1, 2),
-        ) { Text("Custom") }
-    }
+    ShTabs(
+        tabs = listOf("Use default", "Custom"),
+        selectedIndex = if (useDefault) 0 else 1,
+        onSelect = { onChange(it == 0) },
+        modifier = Modifier.fillMaxWidth(),
+    )
 }
 
 /**
@@ -396,34 +397,24 @@ private fun CustomIntervalCard(seconds: Int, onChange: (Int) -> Unit) {
             )
             if (enabled) {
                 RowDivider()
-                SingleChoiceSegmentedButtonRow(
+                ShTabs(
+                    tabs = listOf("Seconds", "Minutes"),
+                    selectedIndex = if (useMinutes) 1 else 0,
+                    onSelect = { index ->
+                        if (index == 0 && useMinutes) {
+                            // Minutes -> seconds: keep the duration but cap at the 59s range.
+                            useMinutes = false
+                            onChange((pos.roundToInt() * 60).coerceIn(1, 59))
+                        } else if (index == 1 && !useMinutes) {
+                            // Seconds -> minutes: round to the nearest minute (>= 1).
+                            useMinutes = true
+                            onChange((pos / 60f).roundToInt().coerceAtLeast(1) * 60)
+                        }
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = Spacing.lg, vertical = Spacing.sm),
-                ) {
-                    SegmentedButton(
-                        selected = !useMinutes,
-                        onClick = {
-                            if (useMinutes) {
-                                // Minutes -> seconds: keep the duration but cap at the 59s range.
-                                useMinutes = false
-                                onChange((pos.roundToInt() * 60).coerceIn(1, 59))
-                            }
-                        },
-                        shape = SegmentedButtonDefaults.itemShape(0, 2),
-                    ) { Text("Seconds") }
-                    SegmentedButton(
-                        selected = useMinutes,
-                        onClick = {
-                            if (!useMinutes) {
-                                // Seconds -> minutes: round to the nearest minute (>= 1).
-                                useMinutes = true
-                                onChange((pos / 60f).roundToInt().coerceAtLeast(1) * 60)
-                            }
-                        },
-                        shape = SegmentedButtonDefaults.itemShape(1, 2),
-                    ) { Text("Minutes") }
-                }
+                )
                 // Seconds tops out at 59 so whole minutes are never ambiguous with seconds.
                 val maxVal = if (useMinutes) 60f else 59f
                 val rounded = pos.roundToInt().coerceIn(1, maxVal.toInt())
@@ -444,6 +435,71 @@ private fun CustomIntervalCard(seconds: Int, onChange: (Int) -> Unit) {
     }
 }
 
+/**
+ * "Relax at home": pause periodic checks while connected to a Wi-Fi network the user trusts.
+ * Reading the SSID requires the location grant (Android's rule — the network name reveals where
+ * you are), so the row explains itself when that's missing instead of failing silently.
+ */
+@Composable
+private fun TrustedWifiGroup(viewModel: SettingsViewModel) {
+    val enabled by viewModel.trustedWifiEnabled.collectAsStateWithLifecycle()
+    val ssids by viewModel.trustedSsids.collectAsStateWithLifecycle()
+    var currentSsid by remember { mutableStateOf<String?>(null) }
+    androidx.lifecycle.compose.LifecycleResumeEffect(Unit) {
+        currentSsid = viewModel.currentSsid()
+        onPauseOrDispose { }
+    }
+
+    SettingsGroup(title = "Trusted Wi-Fi") {
+        SwitchRow(
+            "Relax on trusted Wi-Fi",
+            enabled,
+            viewModel::setTrustedWifiEnabled,
+            subtitle = "Pause all automatic checks (periodic, on-unlock, shake) while connected to a network you trust, like home. Face checks for guarded apps still run.",
+        )
+    }
+    if (enabled) {
+        val current = currentSsid
+        com.guardia.app.ui.components.GuardiaCard(modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.fillMaxWidth().padding(16.dp)) {
+                if (ssids.isEmpty()) {
+                    Text(
+                        "No trusted networks yet.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else {
+                    Text("Trusted networks", style = MaterialTheme.typography.titleSmall)
+                    Spacer(Modifier.height(4.dp))
+                    ssids.forEach { ssid ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(ssid, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                            TextButton(onClick = { viewModel.toggleTrustedSsid(ssid) }) {
+                                Text("Remove", color = MaterialTheme.colorScheme.error)
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                when {
+                    current != null && current !in ssids -> OutlinedButton(
+                        onClick = { viewModel.toggleTrustedSsid(current) },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text("Trust \"$current\"") }
+                    current == null -> Text(
+                        "Connect to Wi-Fi to add it here. Reading the network name also needs the location permission (Android's rule) — grant it under Location Rules or Power Setup.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun DetectionSection(viewModel: SettingsViewModel) {
     val sensitivity by viewModel.sensitivity.collectAsStateWithLifecycle()
@@ -451,7 +507,7 @@ private fun DetectionSection(viewModel: SettingsViewModel) {
     val lowLight by viewModel.lowLightAction.collectAsStateWithLifecycle()
 
     InfoBanner(
-        "Sensitivity controls how confident Guardia must be that a face is yours. Choosing who triggers a lock lives in Response Actions.",
+        "Sensitivity controls how confident Guardia must be that a face is yours. Choosing who triggers a lock lives in Locking & Evidence.",
         Icons.Filled.Info,
     )
     SettingsGroup(title = "Match sensitivity") {
@@ -492,6 +548,34 @@ private fun DetectionSection(viewModel: SettingsViewModel) {
             tone = BannerTone.Warning,
         )
     }
+    // Both dark policies escalate through the screen-brightening overlay, which is a no-op
+    // without "Display over other apps" — surface that here instead of failing silently.
+    if (lowLight != 0) {
+        val context = androidx.compose.ui.platform.LocalContext.current
+        var canOverlay by remember { mutableStateOf(android.provider.Settings.canDrawOverlays(context)) }
+        androidx.lifecycle.compose.LifecycleResumeEffect(Unit) {
+            canOverlay = android.provider.Settings.canDrawOverlays(context)
+            onPauseOrDispose { }
+        }
+        if (!canOverlay) {
+            InfoBanner(
+                "Brightening can't work yet: Guardia needs the \"Display over other apps\" permission to raise the screen brightness in the dark.",
+                Icons.Filled.Info,
+                tone = BannerTone.Warning,
+            )
+            OutlinedButton(
+                onClick = {
+                    context.startActivity(
+                        android.content.Intent(
+                            android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                            android.net.Uri.parse("package:${context.packageName}"),
+                        )
+                    )
+                },
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text("Allow display over other apps") }
+        }
+    }
 
     SettingsGroup(title = "Testing") {
         SwitchRow(
@@ -513,7 +597,7 @@ private fun ResponseSection(viewModel: SettingsViewModel) {
     val wrongUnlockThreshold by viewModel.wrongUnlockThreshold.collectAsStateWithLifecycle()
 
     InfoBanner(
-        "Choose exactly when Guardia locks the phone during a background check. Locking uses Device Admin — enable it in System & Reliability.",
+        "Choose exactly when Guardia locks the phone during a background check. Locking uses Device Admin — enable it in Permissions & Reliability.",
         Icons.Filled.Info,
     )
     SettingsGroup(title = "Lock the device when…") {
@@ -585,6 +669,47 @@ private fun ResponseSection(viewModel: SettingsViewModel) {
             )
         }
     }
+    if (capture) CaptureWhileOffRequirement()
+}
+
+/**
+ * Capturing an intruder on a wrong device unlock while Guardia isn't actively guarding needs to
+ * open the camera from the background. Android only allows that for apps holding "Display over
+ * other apps" — without it, capture works while guarding is on but silently fails when it's off.
+ * Surface the requirement so the safety feature isn't quietly broken.
+ */
+@Composable
+private fun CaptureWhileOffRequirement() {
+    val context = LocalContext.current
+    var canOverlay by remember { mutableStateOf(android.provider.Settings.canDrawOverlays(context)) }
+    androidx.lifecycle.compose.LifecycleResumeEffect(Unit) {
+        canOverlay = android.provider.Settings.canDrawOverlays(context)
+        onPauseOrDispose { }
+    }
+    if (canOverlay) {
+        InfoBanner(
+            "Intruder capture on a wrong unlock works even when guarding is off.",
+            Icons.Filled.Info,
+            tone = BannerTone.Success,
+        )
+    } else {
+        InfoBanner(
+            "To capture a wrong-unlock selfie even when guarding is off, Guardia needs \"Display over other apps\" — Android blocks background camera access without it.",
+            Icons.Filled.Info,
+            tone = BannerTone.Warning,
+        )
+        OutlinedButton(
+            onClick = {
+                context.startActivity(
+                    android.content.Intent(
+                        android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        android.net.Uri.parse("package:${context.packageName}"),
+                    ),
+                )
+            },
+            modifier = Modifier.fillMaxWidth(),
+        ) { Text("Allow display over other apps") }
+    }
 }
 
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
@@ -642,7 +767,14 @@ private fun AppearanceRules(viewModel: SettingsViewModel) {
                 Spacer(Modifier.height(8.dp))
                 FlowRow(horizontalArrangement = chipGap) {
                     listOf("MALE" to "Male", "FEMALE" to "Female").forEach { (key, label) ->
-                        FilterChip(selected = key in sexes, onClick = { viewModel.toggleIgnoreSex(key) }, label = { Text(label) })
+                        FilterChip(
+                            selected = key in sexes,
+                            onClick = { viewModel.toggleIgnoreSex(key) },
+                            label = { Text(label) },
+                            // Without a bundled gender model the rule can't run; a tappable chip
+                            // would silently do nothing, so make the inactive state visible.
+                            enabled = viewModel.genderModelAvailable,
+                        )
                     }
                 }
             }
@@ -663,7 +795,8 @@ private fun StepperRow(
     max: Int,
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        // Same insets as the kit's RowScaffold so the stepper sits flush with sibling rows.
+        modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.lg, vertical = Spacing.md),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
@@ -798,7 +931,7 @@ private fun LocationSection(onUpgrade: () -> Unit, viewModel: LocationViewModel 
                 Text(
                     if (policy.guardEnabled) "Guarding is active here." else "Guarding is paused here.",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = if (policy.guardEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = if (policy.guardEnabled) Guardia.colors.success else Guardia.colors.mutedForeground,
                 )
                 Text(
                     "Updates automatically as you move.",
@@ -807,7 +940,7 @@ private fun LocationSection(onUpgrade: () -> Unit, viewModel: LocationViewModel 
                 )
             }
             IconButton(onClick = { viewModel.refreshLocation() }) {
-                Icon(Icons.Filled.Refresh, contentDescription = "Refresh location", tint = MaterialTheme.colorScheme.primary)
+                Icon(Icons.Filled.Refresh, contentDescription = "Refresh location", tint = Guardia.colors.foreground)
             }
         }
     }
@@ -823,7 +956,7 @@ private fun LocationSection(onUpgrade: () -> Unit, viewModel: LocationViewModel 
     if (publicGuard) {
         SettingsSourceToggle(useDefault = publicUseDefault, onChange = viewModel::setPublicUseDefault)
         if (publicUseDefault) {
-            InfoBanner("Public areas use your Guarding & Triggers settings.", Icons.Filled.Info)
+            InfoBanner("Public areas use your Check Schedule settings.", Icons.Filled.Info)
         } else {
             PlaceScheduleEditor(
                 responsiveness = publicResp,
@@ -858,7 +991,7 @@ private fun LocationSection(onUpgrade: () -> Unit, viewModel: LocationViewModel 
             )
             if (zone.guardEnabled) {
                 if (zone.useDefault) {
-                    InfoBanner("This zone uses your Guarding & Triggers settings.", Icons.Filled.Info)
+                    InfoBanner("This zone uses your Check Schedule settings.", Icons.Filled.Info)
                 } else {
                     PlaceScheduleEditor(
                         responsiveness = zone.responsiveness,
@@ -943,9 +1076,10 @@ private fun ZoneCard(
                 Column(Modifier.weight(1f)) {
                     Text(zone.name, style = MaterialTheme.typography.titleMedium)
                     Text(
-                        if (isCurrent) "You're here now" else "${"%.4f".format(zone.latitude)}, ${"%.4f".format(zone.longitude)}",
+                        if (isCurrent) "You're here now"
+                        else "${"%.4f".format(java.util.Locale.US, zone.latitude)}, ${"%.4f".format(java.util.Locale.US, zone.longitude)}",
                         style = MaterialTheme.typography.bodySmall,
-                        color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = if (isCurrent) Guardia.colors.success else Guardia.colors.mutedForeground,
                     )
                 }
                 IconButton(onClick = onRename) { Icon(Icons.Filled.Edit, contentDescription = "Rename") }
@@ -977,18 +1111,12 @@ private fun ZoneCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Spacer(Modifier.height(Spacing.sm))
-                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                        SegmentedButton(
-                            selected = zone.useDefault,
-                            onClick = { onUseDefault(true) },
-                            shape = SegmentedButtonDefaults.itemShape(0, 2),
-                        ) { Text("Use default") }
-                        SegmentedButton(
-                            selected = !zone.useDefault,
-                            onClick = { onUseDefault(false) },
-                            shape = SegmentedButtonDefaults.itemShape(1, 2),
-                        ) { Text("Custom") }
-                    }
+                    ShTabs(
+                        tabs = listOf("Use default", "Custom"),
+                        selectedIndex = if (zone.useDefault) 0 else 1,
+                        onSelect = { onUseDefault(it == 0) },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
                 }
             }
         }
@@ -1011,11 +1139,11 @@ private fun ZoneNameDialog(title: String, initial: String, onDismiss: () -> Unit
             )
         },
         confirmButton = {
-            androidx.compose.material3.TextButton(
+            TextButton(
                 onClick = { onConfirm(name.ifBlank { "Safe zone" }) },
             ) { Text("Save") }
         },
-        dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )
 }
 
@@ -1049,6 +1177,40 @@ private fun PrivacySection(viewModel: SettingsViewModel) {
             },
         )
     }
+    // Evidence you never look at is a liability rather than an asset — but deleting the only
+    // record of a break-in on the user's behalf would be worse, so this defaults to off and says
+    // plainly what it will do.
+    val retention by viewModel.evidenceRetentionDays.collectAsStateWithLifecycle()
+    SettingsGroup(
+        title = "Keep intruder photos for",
+        subtitle = "Older captures are deleted automatically. Anything you've assigned to a person is already saved separately.",
+    ) {
+        val options = listOf(
+            0 to "Forever",
+            7 to "7 days",
+            30 to "30 days",
+            90 to "90 days",
+        )
+        options.forEachIndexed { index, (days, label) ->
+            RadioRow(
+                label = label,
+                selected = retention == days,
+                onClick = {
+                    viewModel.setEvidenceRetentionDays(days) { removed ->
+                        if (removed > 0) {
+                            android.widget.Toast.makeText(
+                                context,
+                                "Deleted $removed older photo${if (removed == 1) "" else "s"}",
+                                android.widget.Toast.LENGTH_SHORT,
+                            ).show()
+                        }
+                    }
+                },
+            )
+            if (index < options.lastIndex) RowDivider()
+        }
+    }
+
     SettingsGroup(title = "Clear data") {
         com.guardia.app.ui.components.NavRow("Delete all intruder photos", onClick = { viewModel.clearIntruderPhotos() })
         RowDivider()
@@ -1176,7 +1338,6 @@ private fun PermissionsControlPanel() {
     }
 }
 
-
 @Composable
 private fun BackupRestore(viewModel: BackupViewModel = hiltViewModel()) {
     val context = LocalContext.current
@@ -1212,6 +1373,12 @@ private fun BackupRestore(viewModel: BackupViewModel = hiltViewModel()) {
         "Backups are encrypted with your password (not your device key) so they work after reinstalling or on a new phone. The password cannot be recovered.",
         Icons.Filled.Info,
     )
+    // Say this plainly: after this release a backup file is not only data, it is a way back in.
+    // Someone who knows that will store the file and its password with the care they deserve.
+    InfoBanner(
+        "A backup you exported from this phone can also reset a forgotten PIN, from the lock screen. It only works with its password, and only on the phone that made it.",
+        Icons.Filled.Key,
+    )
 
     if (dialog != null) {
         val isExport = dialog == "export"
@@ -1241,7 +1408,7 @@ private fun BackupRestore(viewModel: BackupViewModel = hiltViewModel()) {
                 }
             },
             confirmButton = {
-                androidx.compose.material3.TextButton(
+                TextButton(
                     enabled = password.length >= 4,
                     onClick = {
                         val uri = pendingUri
@@ -1253,7 +1420,7 @@ private fun BackupRestore(viewModel: BackupViewModel = hiltViewModel()) {
                     },
                 ) { Text(if (isExport) "Export" else "Restore") }
             },
-            dismissButton = { androidx.compose.material3.TextButton(onClick = { dialog = null }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { dialog = null }) { Text("Cancel") } },
         )
     }
 }
@@ -1267,6 +1434,28 @@ private fun VoiceSection(viewModel: SettingsViewModel) {
         Triple("Always listening", "Listen continuously for the safeword.", 1),
         Triple("Only as face fallback", "Listen when face recognition is uncertain.", 2),
     )
+    // The voice safeword needs a Picovoice AccessKey compiled into the build; without one
+    // VoiceService exits immediately. The Play flavour goes further and strips RECORD_AUDIO and
+    // VoiceService from the manifest entirely (see app/src/play/AndroidManifest.xml), because
+    // shipping a microphone permission for a feature that cannot run is a Play violation. Either
+    // way, offering the switch would only let the user turn on nothing — so explain instead.
+    val voiceUnavailable = com.guardia.app.BuildConfig.PICOVOICE_ACCESS_KEY.isBlank() ||
+        com.guardia.app.BuildConfig.PLAY_BUILD
+    if (voiceUnavailable) {
+        InfoBanner(
+            if (com.guardia.app.BuildConfig.PLAY_BUILD) {
+                "Voice safeword isn't part of the Play build — it needs microphone access, and " +
+                    "Guardia doesn't ask for permissions it isn't using. The sideload build has it."
+            } else {
+                "Voice safeword is unavailable in this build. It needs a Picovoice AccessKey set " +
+                    "as picovoice.accessKey in local.properties; add one and rebuild to switch it on."
+            },
+            Icons.Filled.Info,
+            tone = BannerTone.Warning,
+        )
+        return
+    }
+
     InfoBanner(
         "A safeword is a spoken phrase that confirms it's really you when the camera isn't sure. \"Always listening\" uses more battery; \"face fallback\" only listens during an uncertain check.",
         Icons.Filled.Info,
@@ -1286,9 +1475,66 @@ private fun VoiceSection(viewModel: SettingsViewModel) {
         }
     }
     InfoBanner(
-        "Add a Picovoice AccessKey to local.properties to enable voice. Custom \"start/stop guarding\" phrases can be trained on the Picovoice console.",
+        "Custom \"start/stop guarding\" phrases can be trained on the Picovoice console.",
         Icons.Filled.Info,
     )
+}
+
+/**
+ * Theme and motion.
+ *
+ * Motion is a real setting rather than an accessibility afterthought: the aurora and the status
+ * gauge run for as long as the app is open, and on an older phone or a low battery some people
+ * will want them gone without having to turn off animations for the entire device. "Follow the
+ * system" stays the default so the OS-wide accessibility choice keeps working untouched.
+ */
+@Composable
+private fun AppearanceSection(viewModel: com.guardia.app.ui.theme.AppearanceState = hiltViewModel()) {
+    val theme by viewModel.themeMode.collectAsStateWithLifecycle()
+    val motion by viewModel.animationsMode.collectAsStateWithLifecycle()
+
+    SettingsGroup(
+        title = "Theme",
+        subtitle = "Guardia is designed dark-first — light mode is fully supported, it just isn't where it looks its best.",
+    ) {
+        val options = listOf(
+            com.guardia.app.data.AppPreferences.THEME_SYSTEM to ("Follow the system" to "Match your phone's dark-mode setting."),
+            com.guardia.app.data.AppPreferences.THEME_DARK to ("Always dark" to "Obsidian and signal cyan, whatever the system does."),
+            com.guardia.app.data.AppPreferences.THEME_LIGHT to ("Always light" to "Porcelain surfaces, same accents."),
+        )
+        options.forEachIndexed { index, (value, text) ->
+            RadioRow(
+                label = text.first,
+                subtitle = text.second,
+                selected = theme == value,
+                onClick = { viewModel.setThemeMode(value) },
+            )
+            if (index < options.lastIndex) RowDivider()
+        }
+    }
+
+    SettingsGroup(
+        title = "Motion",
+        subtitle = "The drifting background light and the pulsing status gauge. Screen transitions and button feedback are unaffected.",
+    ) {
+        val options = listOf(
+            com.guardia.app.data.AppPreferences.MOTION_SYSTEM to
+                ("Follow the system" to "Off when you've disabled animations in Android's settings."),
+            com.guardia.app.data.AppPreferences.MOTION_ON to
+                ("Always on" to "Keep the ambient motion even with system animations off."),
+            com.guardia.app.data.AppPreferences.MOTION_OFF to
+                ("Off" to "Everything static. Slightly kinder to the battery."),
+        )
+        options.forEachIndexed { index, (value, text) ->
+            RadioRow(
+                label = text.first,
+                subtitle = text.second,
+                selected = motion == value,
+                onClick = { viewModel.setAnimationsMode(value) },
+            )
+            if (index < options.lastIndex) RowDivider()
+        }
+    }
 }
 
 @Composable
@@ -1349,8 +1595,11 @@ private fun AppCheckSection(viewModel: AppCheckViewModel = hiltViewModel()) {
         tone = if (accessibilityOn) BannerTone.Success else BannerTone.Warning,
     )
     if (!accessibilityOn) {
+        // Play's AccessibilityService policy requires a prominent disclosure before the user is
+        // sent to enable the service; rememberAccessibilityOptIn shows it.
+        val openAccessibility = rememberAccessibilityOptIn()
         OutlinedButton(
-            onClick = { context.startActivity(android.content.Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)) },
+            onClick = openAccessibility,
             modifier = Modifier.fillMaxWidth(),
         ) { Text("Enable accessibility service") }
     }
@@ -1494,14 +1743,14 @@ private fun UpgradeOverlayCard(
                     .background(
                         androidx.compose.ui.graphics.Brush.verticalGradient(
                             listOf(
-                                MaterialTheme.colorScheme.primary.copy(alpha = 0.30f),
-                                MaterialTheme.colorScheme.primary.copy(alpha = 0.10f),
+                                Guardia.colors.muted,
+                                Guardia.colors.card,
                             ),
                         ),
                     ),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(Icons.Filled.Lock, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Icon(Icons.Filled.Lock, contentDescription = null, tint = Guardia.colors.foreground)
             }
             Spacer(Modifier.height(Spacing.sm))
             Text(
@@ -1527,7 +1776,7 @@ private fun UpgradeOverlayCard(
                         Icon(
                             Icons.Filled.CheckCircle,
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
+                            tint = Guardia.colors.success,
                             modifier = Modifier.size(18.dp),
                         )
                         Spacer(Modifier.width(Spacing.sm))
@@ -1559,7 +1808,7 @@ private fun PreviewRow(icon: ImageVector, title: String, subtitle: String, trail
         modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.lg, vertical = Spacing.md),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+        Icon(icon, contentDescription = null, tint = Guardia.colors.mutedForeground)
         Spacer(Modifier.width(Spacing.md))
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.bodyLarge)
@@ -1644,8 +1893,21 @@ private fun AppLockSection(onUpgrade: () -> Unit = {}, viewModel: AppLockViewMod
         Icons.Filled.Info,
         tone = if (accessibilityOn) BannerTone.Success else BannerTone.Warning,
     )
+    // Play's AccessibilityService policy requires a prominent disclosure before the user is sent
+    // to enable the service; rememberAccessibilityOptIn shows it.
+    val openAccessibility = rememberAccessibilityOptIn()
     OutlinedButton(
-        onClick = { context.startActivity(android.content.Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)) },
+        onClick = {
+            if (accessibilityOn) {
+                runCatching {
+                    context.startActivity(
+                        android.content.Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS),
+                    )
+                }
+            } else {
+                openAccessibility()
+            }
+        },
         modifier = Modifier.fillMaxWidth(),
     ) { Text(if (accessibilityOn) "Accessibility enabled - open settings" else "Enable accessibility service") }
 
@@ -1786,6 +2048,16 @@ private fun ProfilesSection(onUpgrade: () -> Unit = {}, viewModel: ProfilesViewM
 @Composable
 private fun AlertsSection(onUpgrade: () -> Unit = {}, viewModel: AlertsViewModel = hiltViewModel()) {
     val premium by viewModel.premium.collectAsStateWithLifecycle()
+    // Free for everyone: the weekly "your protection worked" receipt.
+    val digestEnabled by viewModel.weeklyDigestEnabled.collectAsStateWithLifecycle()
+    SettingsGroup(title = "Weekly summary") {
+        SwitchRow(
+            "Weekly protection digest",
+            digestEnabled,
+            viewModel::setWeeklyDigestEnabled,
+            subtitle = "A quiet once-a-week notification: checks run, intruder events, wrong PIN attempts.",
+        )
+    }
     if (!premium) {
         PremiumGate(
             feature = "Alerts & Recovery",
@@ -1810,6 +2082,7 @@ private fun AlertsSection(onUpgrade: () -> Unit = {}, viewModel: AlertsViewModel
     val trustedNumber by viewModel.trustedNumber.collectAsStateWithLifecycle()
     val findEnabled by viewModel.findEnabled.collectAsStateWithLifecycle()
     val findKeyword by viewModel.findKeyword.collectAsStateWithLifecycle()
+    val armKeyword by viewModel.armKeyword.collectAsStateWithLifecycle()
     val findTrustedOnly by viewModel.findTrustedOnly.collectAsStateWithLifecycle()
 
     val smsPerms = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {}
@@ -1857,9 +2130,12 @@ private fun AlertsSection(onUpgrade: () -> Unit = {}, viewModel: AlertsViewModel
             }
         }
 
-        SettingsGroup(title = "Find my phone") {
+        SettingsGroup(
+            title = "Remote control by text",
+            subtitle = "Text a secret keyword to this phone from another phone to control it remotely.",
+        ) {
             SwitchRow(
-                "Locate by SMS keyword", findEnabled,
+                "Enable remote SMS commands", findEnabled,
                 { on ->
                     if (on) {
                         smsPerms.launch(arrayOf(Manifest.permission.RECEIVE_SMS, Manifest.permission.SEND_SMS))
@@ -1867,21 +2143,41 @@ private fun AlertsSection(onUpgrade: () -> Unit = {}, viewModel: AlertsViewModel
                     }
                     viewModel.setFindEnabled(on)
                 },
-                subtitle = "Text the secret keyword to this phone to lock it and get its location.",
+                subtitle = "Locate and lock the phone, or turn protection on, with a secret text.",
             )
         }
         if (findEnabled) {
             com.guardia.app.ui.components.GuardiaCard(modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.fillMaxWidth().padding(16.dp)) {
-                    FormField("Secret keyword", findKeyword, viewModel::setFindKeyword)
+                    Text("Locate keyword", style = MaterialTheme.typography.titleSmall)
+                    Text(
+                        "Locks the phone and texts back its location.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    FormField("Locate keyword", findKeyword, viewModel::setFindKeyword)
+                    Spacer(Modifier.height(16.dp))
+                    Text("Arm keyword", style = MaterialTheme.typography.titleSmall)
+                    Text(
+                        "Turns Guardia protection on remotely. Leave blank to disable this command.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    FormField("Arm keyword", armKeyword, viewModel::setArmKeyword)
                 }
             }
             SwitchRow(
                 "Trusted number only", findTrustedOnly, viewModel::setFindTrustedOnly,
                 subtitle = if (findTrustedOnly && trustedNumber.isBlank())
-                    "Set a trusted phone number above — locate requests are ignored until one is set."
+                    "Set a trusted phone number above — commands are ignored until one is set."
                 else
-                    "Only react to the keyword when it's sent from your trusted number. Turning this off lets any phone that knows the keyword locate this device.",
+                    "Only react to a keyword when it's sent from your trusted number. Turning this off lets any phone that knows a keyword control this device.",
+            )
+            InfoBanner(
+                "Only SMS works — Android does not allow any app to read WhatsApp or Viber messages. Locating cannot bypass a revoked permission or a Location toggle you turned off; it powers up GPS for one reading when Location is on.",
+                Icons.Filled.Info,
             )
         }
     }
@@ -1894,7 +2190,7 @@ private fun AlertsSection(onUpgrade: () -> Unit = {}, viewModel: AlertsViewModel
 
 @Composable
 private fun FormField(label: String, value: String, onChange: (String) -> Unit, password: Boolean = false) {
-    androidx.compose.material3.OutlinedTextField(
+    OutlinedTextField(
         value = value,
         onValueChange = onChange,
         label = { Text(label) },
@@ -1911,6 +2207,9 @@ private fun ScannerSection(viewModel: ScannerViewModel = hiltViewModel()) {
     val score by viewModel.score.collectAsStateWithLifecycle()
 
     val adminLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { viewModel.scan() }
+    // Play's AccessibilityService policy requires a prominent disclosure before the user is sent to
+    // enable the service; rememberAccessibilityOptIn shows it.
+    val openAccessibility = rememberAccessibilityOptIn()
 
     androidx.lifecycle.compose.LifecycleResumeEffect(Unit) {
         viewModel.scan()
@@ -1924,7 +2223,7 @@ private fun ScannerSection(viewModel: ScannerViewModel = hiltViewModel()) {
     com.guardia.app.ui.components.GuardiaCard(modifier = Modifier.fillMaxWidth()) {
         Column {
             checks.forEachIndexed { index, check ->
-                CheckRow(check) { runFix(context, check.fix, adminLauncher) }
+                CheckRow(check) { runFix(context, check.fix, adminLauncher, openAccessibility) }
                 if (index < checks.lastIndex) RowDivider()
             }
         }
@@ -1991,7 +2290,7 @@ private fun UsageRow(
 ) {
     val (statusText, statusColor) = when {
         byOther -> "In use by another app" to MaterialTheme.colorScheme.error
-        bySelf -> "In use by Guardia" to MaterialTheme.colorScheme.primary
+        bySelf -> "In use by Guardia" to Guardia.colors.success
         active -> "In use" to MaterialTheme.colorScheme.onSurface
         else -> "Not in use" to MaterialTheme.colorScheme.onSurfaceVariant
     }
@@ -2007,7 +2306,7 @@ private fun UsageRow(
         Icon(
             if (byOther) Icons.Filled.Warning else Icons.Filled.CheckCircle,
             contentDescription = null,
-            tint = if (byOther) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+            tint = if (byOther) Guardia.colors.destructive else Guardia.colors.success,
         )
     }
 }
@@ -2021,14 +2320,24 @@ private fun CheckRow(check: SecurityCheck, onFix: () -> Unit) {
         androidx.compose.material3.Icon(
             if (check.passed) Icons.Filled.CheckCircle else Icons.Filled.Warning,
             contentDescription = null,
-            tint = if (check.passed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+            tint = if (check.passed) Guardia.colors.success else Guardia.colors.destructive,
         )
         androidx.compose.foundation.layout.Column(Modifier.weight(1f).padding(start = 12.dp)) {
-            Text(check.title, style = MaterialTheme.typography.titleMedium)
+            androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Text(check.title, style = MaterialTheme.typography.titleMedium)
+                if (!check.passed && check.severity == Severity.CRITICAL) {
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        "CRITICAL",
+                        style = com.guardia.app.ui.theme.OverlineStyle,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            }
             Text(check.detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         if (!check.passed && check.fix != FixAction.NONE) {
-            androidx.compose.material3.TextButton(onClick = onFix) { Text("Fix") }
+            TextButton(onClick = onFix) { Text("Fix") }
         }
     }
 }
@@ -2037,12 +2346,14 @@ private fun runFix(
     context: android.content.Context,
     fix: FixAction,
     adminLauncher: androidx.activity.result.ActivityResultLauncher<android.content.Intent>,
+    onAccessibility: () -> Unit,
 ) {
     val launched = runCatching {
         when (fix) {
             FixAction.DEVICE_ADMIN -> adminLauncher.launch(DeviceAdminManager.enableIntent(context))
             FixAction.SECURITY_SETTINGS -> context.startActivity(android.content.Intent(android.provider.Settings.ACTION_SECURITY_SETTINGS))
-            FixAction.ACCESSIBILITY -> context.startActivity(android.content.Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS))
+            // Goes through the prominent disclosure rather than straight to system settings.
+            FixAction.ACCESSIBILITY -> onAccessibility()
             FixAction.DEVELOPER -> context.startActivity(android.content.Intent(android.provider.Settings.ACTION_SETTINGS))
             FixAction.APP_DETAILS -> context.startActivity(
                 android.content.Intent(
@@ -2050,6 +2361,7 @@ private fun runFix(
                     android.net.Uri.fromParts("package", context.packageName, null),
                 ),
             )
+            FixAction.WIFI -> context.startActivity(android.content.Intent(android.provider.Settings.ACTION_WIFI_SETTINGS))
             FixAction.IN_APP -> android.widget.Toast.makeText(context, "Adjust this in the Guardia app", android.widget.Toast.LENGTH_SHORT).show()
             FixAction.NONE -> Unit
         }
@@ -2062,51 +2374,262 @@ private fun runFix(
 @Composable
 private fun PinsSection(viewModel: PinSettingsViewModel = hiltViewModel()) {
     val context = LocalContext.current
-    var current by remember { mutableStateOf("") }
-    var newReal by remember { mutableStateOf("") }
-    var newDecoy by remember { mutableStateOf("") }
-    var newPanic by remember { mutableStateOf("") }
+    val pinIsSet by viewModel.pinIsSet.collectAsStateWithLifecycle()
+    val decoySet by viewModel.decoySet.collectAsStateWithLifecycle()
+    val panicSet by viewModel.panicSet.collectAsStateWithLifecycle()
+    val lockedUntil by viewModel.lockedUntil.collectAsStateWithLifecycle()
+    val relockAfter by viewModel.relockAfterSeconds.collectAsStateWithLifecycle()
+    val recoverySet by viewModel.recoveryCodeSet.collectAsStateWithLifecycle()
+    var freshRecoveryCode by remember { mutableStateOf<String?>(null) }
 
-    InfoBanner(
-        "Three PINs, each 4-6 digits. Real opens Guardia. Decoy opens a harmless game (so a thief sees nothing sensitive). Panic looks normal but can trigger emergency actions.",
-        Icons.Filled.Info,
-    )
-    com.guardia.app.ui.components.SectionHeader("Change PINs")
-    com.guardia.app.ui.components.GuardiaCard(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.fillMaxWidth().padding(16.dp)) {
-            PinTextField("Current PIN", current) { current = it }
-            Spacer(Modifier.height(12.dp))
-            PinTextField("New real PIN", newReal) { newReal = it }
-            Spacer(Modifier.height(12.dp))
-            PinTextField("New decoy PIN (optional)", newDecoy) { newDecoy = it }
-            Spacer(Modifier.height(12.dp))
-            PinTextField("New panic PIN (optional)", newPanic) { newPanic = it }
-            Spacer(Modifier.height(16.dp))
-            Button(
-                onClick = {
-                    viewModel.changePins(current, newReal, newDecoy.ifBlank { null }, newPanic.ifBlank { null }) { ok, msg ->
-                        android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
-                        if (ok) { current = ""; newReal = ""; newDecoy = ""; newPanic = "" }
-                    }
-                },
-                enabled = current.length in 4..6 && newReal.length in 4..6,
-                modifier = Modifier.fillMaxWidth().height(48.dp),
-            ) { Text("Update PINs") }
+    freshRecoveryCode?.let { code ->
+        com.guardia.app.ui.components.RecoveryCodeDialog(code) { freshRecoveryCode = null }
+    }
+
+    var stage by remember { mutableStateOf(PinStage.VERIFY) }
+    var editType by remember { mutableStateOf(com.guardia.app.core.security.PinType.REAL) }
+    var input by remember { mutableStateOf("") }
+    var firstEntry by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    // First-ever setup has no PIN to verify against — go straight to the picker.
+    androidx.compose.runtime.LaunchedEffect(pinIsSet) {
+        if (!pinIsSet && stage == PinStage.VERIFY) stage = PinStage.MENU
+    }
+
+    // Lockout countdown (shares the lock screen's brute-force backoff).
+    var nowMs by remember { mutableStateOf(System.currentTimeMillis()) }
+    androidx.compose.runtime.LaunchedEffect(lockedUntil) {
+        while (lockedUntil > System.currentTimeMillis()) {
+            nowMs = System.currentTimeMillis()
+            kotlinx.coroutines.delay(1000)
         }
+        nowMs = System.currentTimeMillis()
+    }
+    val locked = lockedUntil > nowMs
+
+    val toast: (String) -> Unit = { msg ->
+        android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
+    }
+
+    when (stage) {
+        PinStage.VERIFY -> PinEntryPanel(
+            overline = "IDENTITY CHECK",
+            title = "Enter your current PIN",
+            subtitle = if (locked)
+                "Too many attempts — try again in ${((lockedUntil - nowMs) / 1000).coerceAtLeast(1)}s"
+            else error,
+            input = input,
+            padEnabled = !locked,
+            onDigit = { d ->
+                if (input.length < 6) {
+                    input += d
+                    error = null
+                    // PINs are 4-6 digits; don't burn a PBKDF2 hash on shorter prefixes.
+                    if (input.length >= 4) {
+                        viewModel.verifyCurrent(input) { result ->
+                            when (result) {
+                                true -> { input = ""; stage = PinStage.MENU }
+                                false -> { input = ""; error = "Incorrect PIN, try again" }
+                                null -> Unit
+                            }
+                        }
+                    }
+                }
+            },
+            onBackspace = { input = input.dropLast(1) },
+        )
+
+        PinStage.MENU -> {
+            InfoBanner(
+                "Three PINs, each 4-6 digits. Real opens Guardia. Decoy opens a harmless decoy screen. Panic looks normal but can trigger emergency actions.",
+                Icons.Filled.Info,
+            )
+            SettingsGroup(title = "Choose a PIN to change") {
+                com.guardia.app.ui.components.NavRow(
+                    title = "Real PIN",
+                    subtitle = "Opens Guardia — the one that's really you",
+                    value = if (pinIsSet) "Set" else "Not set",
+                    onClick = { editType = com.guardia.app.core.security.PinType.REAL; input = ""; error = null; stage = PinStage.ENTER },
+                )
+                RowDivider()
+                com.guardia.app.ui.components.NavRow(
+                    title = "Decoy PIN",
+                    subtitle = "Opens a harmless decoy, so a thief sees nothing",
+                    value = if (decoySet) "Set" else "Not set",
+                    enabled = pinIsSet,
+                    onClick = { editType = com.guardia.app.core.security.PinType.DECOY; input = ""; error = null; stage = PinStage.ENTER },
+                )
+                RowDivider()
+                com.guardia.app.ui.components.NavRow(
+                    title = "Panic PIN",
+                    subtitle = "Looks normal, silently triggers emergency actions",
+                    value = if (panicSet) "Set" else "Not set",
+                    enabled = pinIsSet,
+                    onClick = { editType = com.guardia.app.core.security.PinType.PANIC; input = ""; error = null; stage = PinStage.ENTER },
+                )
+            }
+            if (!pinIsSet) {
+                InfoBanner("Start with your real PIN — the decoy and panic PINs build on it.", Icons.Filled.Info)
+            }
+
+            // The way back in if the PIN is forgotten. Without this the only remedy is a
+            // reinstall, which destroys every enrolled face and every captured photo.
+            SettingsGroup(
+                title = "Recovery code",
+                subtitle = if (recoverySet) {
+                    "One 12-character code unlocks Guardia if you forget your PIN. It's stored hashed, so it can't be shown again — generate a new one if you've lost it."
+                } else {
+                    "You don't have one. Without it, forgetting your PIN means reinstalling and losing every enrolled face."
+                },
+            ) {
+                com.guardia.app.ui.components.NavRow(
+                    title = if (recoverySet) "Generate a new code" else "Create a recovery code",
+                    subtitle = if (recoverySet) "Replaces the old one immediately." else "Shown once — write it down.",
+                    value = if (recoverySet) "Set" else "Not set",
+                    leading = Icons.Filled.Key,
+                    leadingTint = if (recoverySet) Guardia.colors.success else Guardia.colors.warning,
+                    onClick = { viewModel.regenerateRecoveryCode { freshRecoveryCode = it } },
+                )
+            }
+
+            // How quickly the front door closes again. "Immediately" is the security-correct
+            // default; the longer options exist because every trip to Android Settings (to grant
+            // a permission, enable device admin, …) counts as leaving, and some people would rather
+            // not type a PIN after each one.
+            SettingsGroup(
+                title = "Ask for PIN again",
+                subtitle = "After Guardia leaves the screen — switching apps, going home, or the screen turning off.",
+            ) {
+                val options = listOf(
+                    0 to "Immediately",
+                    30 to "After 30 seconds",
+                    120 to "After 2 minutes",
+                    300 to "After 5 minutes",
+                )
+                options.forEachIndexed { index, (seconds, label) ->
+                    RadioRow(
+                        label = label,
+                        selected = relockAfter == seconds,
+                        onClick = { viewModel.setRelockAfterSeconds(seconds) },
+                    )
+                    if (index < options.lastIndex) RowDivider()
+                }
+            }
+        }
+
+        PinStage.ENTER -> {
+            val label = pinRoleLabel(editType)
+            PinEntryPanel(
+                overline = "NEW ${label.uppercase()} PIN",
+                title = "Choose 4-6 digits",
+                subtitle = error,
+                input = input,
+                padEnabled = true,
+                onDigit = { d -> if (input.length < 6) { input += d; error = null } },
+                onBackspace = { input = input.dropLast(1) },
+                onBack = { input = ""; error = null; stage = PinStage.MENU },
+            ) {
+                Button(
+                    onClick = { firstEntry = input; input = ""; error = null; stage = PinStage.CONFIRM },
+                    enabled = input.length in 4..6,
+                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                ) { Text("Continue") }
+                val removable = (editType == com.guardia.app.core.security.PinType.DECOY && decoySet) ||
+                    (editType == com.guardia.app.core.security.PinType.PANIC && panicSet)
+                if (removable) {
+                    TextButton(
+                        onClick = {
+                            viewModel.removePin(editType) { msg -> toast(msg) }
+                            input = ""; stage = PinStage.MENU
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text("Remove $label PIN", color = MaterialTheme.colorScheme.error) }
+                }
+            }
+        }
+
+        PinStage.CONFIRM -> PinEntryPanel(
+            overline = "CONFIRM ${pinRoleLabel(editType).uppercase()} PIN",
+            title = "Re-enter the same PIN",
+            subtitle = error,
+            input = input,
+            padEnabled = true,
+            onDigit = { d ->
+                if (input.length < 6) {
+                    input += d
+                    if (input.length == firstEntry.length) {
+                        if (input == firstEntry) {
+                            viewModel.setPin(editType, firstEntry) { ok, msg ->
+                                toast(msg)
+                                input = ""; error = null
+                                stage = if (ok) PinStage.MENU else PinStage.ENTER
+                            }
+                        } else {
+                            input = ""
+                            error = "PINs don't match — try again"
+                        }
+                    }
+                }
+            },
+            onBackspace = { input = input.dropLast(1) },
+            onBack = { input = ""; error = null; stage = PinStage.ENTER },
+        )
     }
 }
 
+private enum class PinStage { VERIFY, MENU, ENTER, CONFIRM }
+
+private fun pinRoleLabel(type: com.guardia.app.core.security.PinType) = when (type) {
+    com.guardia.app.core.security.PinType.REAL -> "Real"
+    com.guardia.app.core.security.PinType.DECOY -> "Decoy"
+    com.guardia.app.core.security.PinType.PANIC -> "Panic"
+}
+
+/** The vault-style PIN entry surface: overline, dots, keypad, and optional extra actions. */
 @Composable
-private fun PinTextField(label: String, value: String, onChange: (String) -> Unit) {
-    androidx.compose.material3.OutlinedTextField(
-        value = value,
-        onValueChange = { if (it.length <= 6 && it.all(Char::isDigit)) onChange(it) },
-        label = { Text(label) },
-        singleLine = true,
-        visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
-        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.NumberPassword),
-        modifier = Modifier.fillMaxWidth(),
-    )
+private fun PinEntryPanel(
+    overline: String,
+    title: String,
+    subtitle: String?,
+    input: String,
+    padEnabled: Boolean,
+    onDigit: (Int) -> Unit,
+    onBackspace: () -> Unit,
+    onBack: (() -> Unit)? = null,
+    extra: (@Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit)? = null,
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(top = Spacing.md),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            overline,
+            style = com.guardia.app.ui.theme.OverlineStyle,
+            color = Guardia.colors.mutedForeground,
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+        Spacer(Modifier.height(4.dp))
+        Text(
+            subtitle ?: " ",
+            style = MaterialTheme.typography.bodySmall,
+            color = if (subtitle != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(Spacing.lg))
+        com.guardia.app.ui.components.PinDots(length = input.length)
+        Spacer(Modifier.height(Spacing.xl))
+        com.guardia.app.ui.components.PinPad(
+            onDigit = onDigit,
+            onBackspace = onBackspace,
+            enabled = padEnabled,
+        )
+        Spacer(Modifier.height(Spacing.lg))
+        extra?.let { it(this) }
+        if (onBack != null) {
+            TextButton(onClick = onBack) { Text("Back") }
+        }
+    }
 }
 
 @Composable
@@ -2155,7 +2678,7 @@ private fun AccountSection(viewModel: AccountViewModel = hiltViewModel(), onUpgr
                 else -> Text("Connecting to Play...", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Spacer(Modifier.height(8.dp))
-            androidx.compose.material3.TextButton(onClick = { viewModel.restore() }, modifier = Modifier.fillMaxWidth()) { Text("Restore purchases") }
+            TextButton(onClick = { viewModel.restore() }, modifier = Modifier.fillMaxWidth()) { Text("Restore purchases") }
         }
     }
 }

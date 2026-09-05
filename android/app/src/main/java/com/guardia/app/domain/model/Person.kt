@@ -16,6 +16,8 @@ data class Person(
     val blocked: Boolean = false,
     /** Self-declared sex captured at enrollment ("MALE"/"FEMALE"), or null if unspecified. */
     val gender: String? = null,
+    /** Guest pass: epoch-ms after which this person stops being trusted (null = permanent). */
+    val expiresAt: Long? = null,
 )
 
 /** A single enrolled face sample, with the optional cropped image it was trained from. */

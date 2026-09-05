@@ -38,9 +38,15 @@ There is no Guardia cloud and no Guardia login. We cannot see any of this data.
 3. WHAT GUARDIA ACCESSES, WHY, AND WHERE IT GOES
 
 Camera (face)
-- Why: detect/recognize who is using the device; capture an intruder photo.
+- Why: detect/recognize who is using the device; capture intruder photos (an incident may store a
+  short burst of several shots for clearer evidence).
 - Where it goes: processed on-device; enrollments and encrypted intruder photos are stored locally.
 - Your control: deny/revoke the Camera permission; delete people and photos in the app.
+- Guest passes: a guest pass enrolls a temporary face that stops being trusted and is deleted
+  automatically when the pass expires.
+- Learning from mistakes: if the device locks because it didn't recognize you, the app may ask
+  "Was that you?". Only if you confirm, the face data from that one captured photo is added to
+  your own profile to improve recognition. Nothing is added without your explicit tap.
 
 Microphone (voice safeword) — optional
 - Why: an offline wake-word to start/stop guarding hands-free.
@@ -67,6 +73,14 @@ Installed apps / foreground app — optional
 - Why: let you pick which apps to protect; know which app is open for per-app checks and App Lock.
 - Where it goes: stays on-device; app content is never read or sent.
 - Your control: don't enable App Lock / per-app checks; revoke the Accessibility service.
+
+Wi-Fi network name (Trusted Wi-Fi) — optional
+- Why: pause periodic checks while you're connected to a Wi-Fi network you marked as trusted
+  (for example, home).
+- Where it goes: the network names (SSIDs) you trust are stored on-device only; the currently
+  connected network's name is read locally for comparison and is never sent anywhere. (Android
+  requires the location permission to read a network name — that's a platform rule.)
+- Your control: off by default; remove trusted networks anytime (Settings > Check Schedule).
 
 Security data created by the app
 - What: PINs (stored only as salted hashes), event log, settings, battery/usage stats.
@@ -143,7 +157,8 @@ anything involving information you sent us (such as a support email), contact us
 9. DATA RETENTION
 
 - On your device: kept until you delete it or uninstall. Intruder photos are capped and old events
-  are pruned automatically; you can also clear them manually anytime.
+  are pruned automatically; you can also clear them manually anytime. Guest passes and their face
+  data are deleted automatically when the pass expires.
 - With us: nothing, because nothing is uploaded to us. Support emails you send are kept only as long
   as needed to help you, then deleted.
 

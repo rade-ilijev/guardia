@@ -57,11 +57,7 @@ class CaptureGate @Inject constructor(
 
     /** Adjust the steady cadence from the responsiveness profile (0 = saver, 1 = balanced, 2 = max). */
     fun setResponsiveness(level: Int) {
-        tierCadenceMs = when (level) {
-            0 -> SAVER_MS
-            2 -> MAX_MS
-            else -> BALANCED_MS
-        }
+        tierCadenceMs = cadenceForLevel(level)
     }
 
     fun setIntervalEnabled(enabled: Boolean) { intervalEnabled = enabled }
@@ -81,11 +77,7 @@ class CaptureGate @Inject constructor(
 
     /** [gapsSeconds] are the delays between consecutive early checks after unlock. */
     fun setRamp(gapsSeconds: List<Int>) {
-        var cumulative = 0L
-        rampOffsetsMs = gapsSeconds
-            .filter { it > 0 }
-            .map { gap -> cumulative += gap * 1000L; cumulative }
-            .toLongArray()
+        rampOffsetsMs = rampOffsets(gapsSeconds)
     }
 
     /** Request a one-off capture as soon as the screen is on (used by app-open triggers). */
@@ -151,6 +143,27 @@ class CaptureGate @Inject constructor(
         sensorRegistered = want
     }
 
+    /**
+     * Milliseconds until the next scheduled capture is due, so the poll loop can sleep close to
+     * that instead of ticking on a fixed short interval. Returns 0 when a capture is due now and
+     * [Long.MAX_VALUE] when nothing is scheduled (caller clamps to its own safety poll). Purely
+     * advisory: [shouldCapture] remains the single source of truth, so a stale answer here can
+     * only delay a check by one clamped poll, never skip it.
+     */
+    fun nextDueDelayMs(): Long {
+        if (immediatePending) return 0L
+        if (!intervalEnabled) return Long.MAX_VALUE
+        // No session yet (service just started while unlocked): shouldCapture opens it on the next
+        // call, so ask to be polled immediately.
+        if (sessionStartAt == 0L) return 0L
+        val now = System.currentTimeMillis()
+        if (rampIndex < rampOffsetsMs.size) {
+            return (sessionStartAt + rampOffsetsMs[rampIndex] - now).coerceAtLeast(0L)
+        }
+        val cadence = if (customIntervalMs > 0L) customIntervalMs else tierCadenceMs
+        return (lastCaptureAt + cadence - now).coerceAtLeast(0L)
+    }
+
     fun shouldCapture(): Boolean {
         // Only check while the phone is awake AND already unlocked (in active use).
         // While the screen is off or sitting on the lock screen, guarding stays idle — the
@@ -206,14 +219,39 @@ class CaptureGate @Inject constructor(
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
 
-    private companion object {
+    companion object {
+        /**
+         * Turns the user's list of *gaps* between early checks into cumulative offsets from unlock.
+         *
+         * The distinction is the whole reason this is worth testing: the settings screen asks for
+         * "then 5s later, then 10s later", and the scheduler needs "at 5s, at 15s". Non-positive
+         * gaps are dropped rather than collapsed to zero, so a stray 0 in the list cannot make two
+         * checks fire on the same tick.
+         */
+        internal fun rampOffsets(gapsSeconds: List<Int>): LongArray {
+            var cumulative = 0L
+            return gapsSeconds
+                .filter { it > 0 }
+                .map { gap -> cumulative += gap * 1000L; cumulative }
+                .toLongArray()
+        }
+
+        /** Steady cadence for a responsiveness level; anything unrecognised means Balanced. */
+        internal fun cadenceForLevel(level: Int): Long = when (level) {
+            0 -> SAVER_MS
+            2 -> MAX_MS
+            else -> BALANCED_MS
+        }
+
         // Steady cadence between background face checks. Tuned so guarding actually catches an
         // intruder in the moment (the old 1-5 min cadence felt like "nothing happens"): Max security
         // checks every few seconds, Balanced roughly twice a minute, Saver stays battery-light.
-        const val SAVER_MS = 90 * 1000L          // 1.5 minutes
-        const val BALANCED_MS = 25 * 1000L       // 25 seconds
-        const val MAX_MS = 6 * 1000L             // 6 seconds
-        const val SHAKE_THRESHOLD = 6f           // m/s^2 jolt to count as a deliberate shake
-        const val SHAKE_COOLDOWN_MS = 4000L      // don't re-trigger on the same shake
+        // The companion had to stop being private to expose the two helpers above; these stay
+        // private so opening it didn't quietly widen the class's surface.
+        private const val SAVER_MS = 90 * 1000L          // 1.5 minutes
+        private const val BALANCED_MS = 25 * 1000L       // 25 seconds
+        private const val MAX_MS = 6 * 1000L             // 6 seconds
+        private const val SHAKE_THRESHOLD = 6f           // m/s^2 jolt to count as a deliberate shake
+        private const val SHAKE_COOLDOWN_MS = 4000L      // don't re-trigger on the same shake
     }
 }

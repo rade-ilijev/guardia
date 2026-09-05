@@ -152,6 +152,10 @@ interface IntruderDao {
     @Query("SELECT * FROM intruder_captures")
     suspend fun all(): List<IntruderCaptureEntity>
 
+    /** Captures older than [cutoff] (epoch ms) — the ones an active retention window has expired. */
+    @Query("SELECT * FROM intruder_captures WHERE timestamp < :cutoff")
+    suspend fun olderThan(cutoff: Long): List<IntruderCaptureEntity>
+
     @Query("DELETE FROM intruder_captures WHERE id = :id")
     suspend fun delete(id: String)
 

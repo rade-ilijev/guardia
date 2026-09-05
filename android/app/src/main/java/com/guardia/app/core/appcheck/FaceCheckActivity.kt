@@ -30,10 +30,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -54,12 +53,15 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.guardia.app.core.ml.AnalysisConfig
 import com.guardia.app.core.system.DeviceAdminManager
-import com.guardia.app.ui.theme.GuardiaTheme
+import com.guardia.app.ui.components.CircularProgressIndicator
+import com.guardia.app.ui.theme.Guardia
 import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.delay
 import java.util.concurrent.Executors
 import javax.inject.Inject
+import kotlinx.coroutines.delay
+import com.guardia.app.ui.theme.GuardiaAppTheme
 
 @AndroidEntryPoint
 class FaceCheckActivity : ComponentActivity() {
@@ -80,6 +82,7 @@ class FaceCheckActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        com.guardia.app.core.system.markSecure(this)
         // Appear instantly with no enter animation so the underlying app doesn't flash.
         @Suppress("DEPRECATION")
         overridePendingTransition(0, 0)
@@ -115,7 +118,7 @@ class FaceCheckActivity : ComponentActivity() {
         startCamera()
 
         setContent {
-            GuardiaTheme {
+            GuardiaAppTheme {
                 val state by viewModel.state.collectAsStateWithLifecycle()
 
                 androidx.compose.runtime.LaunchedEffect(state.flash) {
@@ -170,9 +173,7 @@ class FaceCheckActivity : ComponentActivity() {
         future.addListener({
             val provider = runCatching { future.get() }.getOrNull() ?: return@addListener
             cameraProvider = provider
-            val analysis = ImageAnalysis.Builder()
-                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                .build()
+            val analysis = AnalysisConfig.builder().build()
             analysis.setAnalyzer(analysisExecutor) { proxy ->
                 val rotation = proxy.imageInfo.rotationDegrees
                 val bmp = runCatching { proxy.toBitmap() }.getOrNull()
@@ -259,7 +260,7 @@ private fun LoadingCheckContent(appLabel: String, phase: CheckPhase, message: St
     val accent = when {
         flashing -> Color(0xFF111817)
         phase == CheckPhase.FAILED -> MaterialTheme.colorScheme.error
-        else -> MaterialTheme.colorScheme.primary
+        else -> Guardia.colors.success
     }
     val onBackground = if (flashing) Color(0xFF111817) else MaterialTheme.colorScheme.onSurfaceVariant
     val titleColor = if (flashing) Color(0xFF111817) else MaterialTheme.colorScheme.onSurface

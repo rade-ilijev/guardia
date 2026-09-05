@@ -75,14 +75,17 @@ class CryptoManager @Inject constructor(
         return generator.generateKey()
     }
 
-    /** Encrypts a short string; returns base64(iv || ciphertext). Returns the input on failure. */
-    fun encryptString(plain: String): String = runCatching {
+    /**
+     * Encrypts a short string; returns base64(iv || ciphertext), or null if encryption fails.
+     * Fails closed: callers must not persist the plaintext when this returns null.
+     */
+    fun encryptString(plain: String): String? = runCatching {
         val cipher = Cipher.getInstance(STRING_TRANSFORMATION)
         cipher.init(Cipher.ENCRYPT_MODE, stringKey())
         val iv = cipher.iv
         val ct = cipher.doFinal(plain.toByteArray(Charsets.UTF_8))
         Base64.getEncoder().encodeToString(iv + ct)
-    }.getOrDefault(plain)
+    }.getOrNull()
 
     /** Decrypts a value from [encryptString]. Returns null if it isn't a valid encrypted blob. */
     fun decryptString(blob: String): String? = runCatching {

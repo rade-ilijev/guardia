@@ -68,6 +68,8 @@ class TamperResponder @Inject constructor(
 
     private companion object {
         const val CHANNEL_ID = "guardia_tamper"
-        const val NOTIFICATION_ID = 1003
+        // Must stay unique across the app (1001 guard FGS, 1002 capture FGS, 1003 voice FGS,
+        // 1005 degraded-model warning, 2001/2002 test feedback) or notifications clobber each other.
+        const val NOTIFICATION_ID = 1004
     }
 }

@@ -38,13 +38,20 @@ class AlertsViewModel @Inject constructor(
     val trustedNumber = flow(prefs.trustedNumber, "")
     val findEnabled = flow(prefs.findMyPhoneEnabled, false)
     val findKeyword = flow(prefs.findKeyword, "GUARDIA LOCATE")
+    val armKeyword = flow(prefs.armKeyword, "GUARDIA PROTECT")
     val findTrustedOnly = flow(prefs.findTrustedOnly, true)
+    val weeklyDigestEnabled = flow(prefs.weeklyDigestEnabled, true)
 
+    fun setWeeklyDigestEnabled(v: Boolean) = viewModelScope.launch { prefs.setWeeklyDigestEnabled(v) }
     fun setEmailEnabled(v: Boolean) = viewModelScope.launch { prefs.setEmailAlertsEnabled(v) }
     fun setSmtpHost(v: String) = viewModelScope.launch { prefs.setSmtpHost(v) }
     fun setSmtpPort(v: Int) = viewModelScope.launch { prefs.setSmtpPort(v) }
     fun setSmtpUser(v: String) = viewModelScope.launch { prefs.setSmtpUser(v) }
-    fun setSmtpPassword(v: String) = viewModelScope.launch { prefs.setSmtpPassword(v) }
+    fun setSmtpPassword(v: String) = viewModelScope.launch {
+        if (!prefs.setSmtpPassword(v)) {
+            android.util.Log.w("AlertsViewModel", "Keystore encryption failed; SMTP password not saved")
+        }
+    }
     fun setRecipient(v: String) = viewModelScope.launch { prefs.setAlertRecipient(v) }
     fun setSmsEnabled(v: Boolean) = viewModelScope.launch { prefs.setSmsAlertsEnabled(v) }
     fun setTrustedNumber(v: String) = viewModelScope.launch { prefs.setTrustedNumber(v) }
@@ -53,6 +60,7 @@ class AlertsViewModel @Inject constructor(
         SensitiveComponents.setSmsReceiverEnabled(context, v)
     }
     fun setFindKeyword(v: String) = viewModelScope.launch { prefs.setFindKeyword(v) }
+    fun setArmKeyword(v: String) = viewModelScope.launch { prefs.setArmKeyword(v) }
     fun setFindTrustedOnly(v: Boolean) = viewModelScope.launch { prefs.setFindTrustedOnly(v) }
 
     fun sendTest(onResult: (Boolean, String) -> Unit) {

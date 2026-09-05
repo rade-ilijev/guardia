@@ -43,6 +43,24 @@ class IntruderRepository @Inject constructor(
         dao.delete(id)
     }
 
+    /**
+     * Deletes captures older than [days], oldest evidence first. Returns how many went.
+     *
+     * The encrypted file is removed before its row, so a crash between the two leaves an orphaned
+     * file rather than a row pointing at nothing — the gallery stays consistent either way, and
+     * "Clear unused face photos" sweeps the orphan up.
+     */
+    suspend fun purgeOlderThan(days: Int, now: Long = System.currentTimeMillis()): Int {
+        if (days <= 0) return 0
+        val cutoff = now - days * 24L * 60 * 60 * 1000
+        val stale = dao.olderThan(cutoff)
+        stale.forEach {
+            crypto.delete(it.photoPath)
+            dao.delete(it.id)
+        }
+        return stale.size
+    }
+
     /** Deletes every capture, removing the encrypted files from disk before clearing the rows. */
     suspend fun clear() {
         dao.all().forEach { crypto.delete(it.photoPath) }

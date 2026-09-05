@@ -1,8 +1,11 @@
 package com.guardia.app.core.guard
 
 import android.content.Context
+import androidx.compose.runtime.Immutable
 import com.guardia.app.data.AppPreferences
 import dagger.hilt.android.qualifiers.ApplicationContext
+import javax.inject.Inject
+import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -13,8 +16,6 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * Tracks Guardia's own foreground work (face checks + camera-on time) in hourly buckets so the
@@ -153,7 +154,16 @@ class GuardActivityTracker @Inject constructor(
     }
 }
 
-/** 24-hour rollup of Guardia's own activity and the resulting estimated battery use. */
+/**
+ * 24-hour rollup of Guardia's own activity and the resulting estimated battery use.
+ *
+ * Marked `@Immutable` for Compose: it holds a `List`, and Compose treats every `List` as unstable
+ * because the interface allows a mutable implementation. Without the annotation, any composable
+ * reading this state is re-run on *every* recomposition of its parent, even when the state itself
+ * has not changed. The contents genuinely are never mutated after construction, so the promise is
+ * safe to make — and it is what lets Compose skip the subtree.
+ */
+@Immutable
 data class GuardActivity(
     val checks24h: Int = 0,
     val cameraSeconds24h: Long = 0,

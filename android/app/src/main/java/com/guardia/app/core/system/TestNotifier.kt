@@ -39,13 +39,21 @@ object TestNotifier {
 
     private fun post(context: Context, id: Int, title: String, text: String) {
         ensureChannel(context)
+        // The previous 6s auto-timeout meant results flashed into the shade and vanished before
+        // anyone noticed ("test mode shows nothing"). Keep the latest result visible for long
+        // enough to actually read, stamp it with the check time, and re-alert on every update.
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_guardia)
             .setContentTitle(title)
             .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_STATUS)
             .setAutoCancel(true)
-            .setTimeoutAfter(6000)
+            .setShowWhen(true)
+            .setWhen(System.currentTimeMillis())
+            .setOnlyAlertOnce(false)
+            .setTimeoutAfter(60_000)
             .build()
         runCatching { NotificationManagerCompat.from(context).notify(id, notification) }
     }

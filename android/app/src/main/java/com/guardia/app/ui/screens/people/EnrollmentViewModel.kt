@@ -2,6 +2,7 @@ package com.guardia.app.ui.screens.people
 
 import android.content.Context
 import android.graphics.Bitmap
+import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.guardia.app.core.ml.BitmapUtils
@@ -15,17 +16,17 @@ import com.guardia.app.data.PeopleRepository
 import com.guardia.app.domain.model.GuardEvent
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import java.io.ByteArrayOutputStream
+import java.io.File
+import java.util.UUID
+import java.util.concurrent.atomic.AtomicBoolean
+import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import java.io.ByteArrayOutputStream
-import java.io.File
-import java.util.UUID
-import java.util.concurrent.atomic.AtomicBoolean
-import javax.inject.Inject
 
 enum class EnrollPhase { READY, CAPTURING, VERIFYING, VERIFIED, SAVED }
 
@@ -44,6 +45,22 @@ val ENROLL_POSES = listOf(
     PoseStep(FaceQualityAnalyzer.HeadPose.DOWN, "Down", "Tilt your head down a little"),
 )
 
+/** An already-enrolled person the freshly captured face strongly resembles. */
+data class DuplicateHit(
+    val personId: String,
+    val name: String,
+    val similarity: Float,
+    val blocked: Boolean,
+)
+
+/**
+ * Marked `@Immutable` for Compose: it holds a `List`, and Compose treats every `List` as unstable
+ * because the interface allows a mutable implementation. Without the annotation, any composable
+ * reading this state is re-run on *every* recomposition of its parent, even when the state itself
+ * has not changed. The contents genuinely are never mutated after construction, so the promise is
+ * safe to make — and it is what lets Compose skip the subtree.
+ */
+@Immutable
 data class EnrollUiState(
     val phase: EnrollPhase = EnrollPhase.READY,
     val stepIndex: Int = 0,
@@ -54,6 +71,8 @@ data class EnrollUiState(
     val requiredPose: FaceQualityAnalyzer.HeadPose? = null,
     val message: String = "Position your face in the circle",
     val score: Float? = null,
+    /** Set after capture when this face closely matches someone already enrolled. */
+    val duplicate: DuplicateHit? = null,
 ) {
     /** Overall progress across all poses, 0..1. */
     val progress: Float
@@ -76,27 +95,58 @@ class EnrollmentViewModel @Inject constructor(
 
     private val embeddings = mutableListOf<FloatArray>()
     private val photos = mutableListOf<String?>()
+    /**
+     * How good each capture was (0..1), stored alongside its embedding. The recognizer weights
+     * samples by this, so the two or three softer frames that every enrollment session collects
+     * still contribute pose coverage without pulling the person's prototype off-centre.
+     */
+    private val qualities = mutableListOf<Float>()
     private var photoPath: String? = null
     private var sensitivity = 0.5f
     private var lastCaptureAt = 0L
     private val processing = AtomicBoolean(false)
+    /** Off when adding samples to a known person — matching them is expected, not a duplicate. */
+    private var checkDuplicates = true
+
+    /** The capture plan: full multi-angle enrollment, or the quick front-only guest scan. */
+    private var poses: List<PoseStep> = ENROLL_POSES
+    private var perStep = 2
 
     init {
         viewModelScope.launch { sensitivity = prefs.sensitivity.first() }
     }
 
-    fun start() = beginCapture()
+    fun start(checkDuplicates: Boolean = true, quick: Boolean = false) {
+        this.checkDuplicates = checkDuplicates
+        if (quick) {
+            // Guest pass: one pose, a few samples — good enough for hours, not forever.
+            poses = listOf(PoseStep(FaceQualityAnalyzer.HeadPose.CENTER, "Front", "Look straight at the camera"))
+            perStep = 3
+        } else {
+            poses = ENROLL_POSES
+            perStep = 2
+        }
+        beginCapture()
+    }
 
     fun retry() = beginCapture()
+
+    /** The user said "someone new" — drop the duplicate suggestion and allow a normal save. */
+    fun dismissDuplicate() {
+        _ui.value = _ui.value.copy(duplicate = null)
+    }
 
     private fun beginCapture() {
         embeddings.clear()
         photos.clear()
+        qualities.clear()
         photoPath = null
-        val first = ENROLL_POSES.first()
+        val first = poses.first()
         _ui.value = EnrollUiState(
             phase = EnrollPhase.CAPTURING,
             stepIndex = 0,
+            totalSteps = poses.size,
+            perStepTarget = perStep,
             requiredPose = first.pose,
             message = first.instruction,
         )
@@ -127,7 +177,7 @@ class EnrollmentViewModel @Inject constructor(
 
         when (state.phase) {
             EnrollPhase.CAPTURING -> {
-                val step = ENROLL_POSES.getOrNull(state.stepIndex) ?: return
+                val step = poses.getOrNull(state.stepIndex) ?: return
                 val q = quality.assessBasics(face, upright, requireEyesOpen = step.pose == FaceQualityAnalyzer.HeadPose.CENTER)
                 if (!q.ok) {
                     update(message = q.reason)
@@ -146,6 +196,7 @@ class EnrollmentViewModel @Inject constructor(
                 val path = savePhoto(aligned)
                 embeddings.add(embedder.embed(aligned))
                 photos.add(path)
+                qualities.add(captureQuality(q.score, aligned))
                 // Use the straight-on shot as the person's avatar.
                 if (step.pose == FaceQualityAnalyzer.HeadPose.CENTER && photoPath == null) photoPath = path
 
@@ -170,6 +221,7 @@ class EnrollmentViewModel @Inject constructor(
                         phase = EnrollPhase.VERIFIED,
                         score = sim,
                         message = "Recognized you — ${(sim * 100).toInt()}% match",
+                        duplicate = if (checkDuplicates) findDuplicate() else null,
                     )
                 } else {
                     update(message = "Hold still to verify…")
@@ -180,9 +232,9 @@ class EnrollmentViewModel @Inject constructor(
     }
 
     private fun advanceStep(state: EnrollUiState) {
-        val completed = state.completedPoses + ENROLL_POSES[state.stepIndex].pose
+        val completed = state.completedPoses + poses[state.stepIndex].pose
         val next = state.stepIndex + 1
-        if (next >= ENROLL_POSES.size) {
+        if (next >= poses.size) {
             _ui.value = state.copy(
                 phase = EnrollPhase.VERIFYING,
                 completedPoses = completed,
@@ -191,7 +243,7 @@ class EnrollmentViewModel @Inject constructor(
                 message = "Almost done — look straight ahead",
             )
         } else {
-            val step = ENROLL_POSES[next]
+            val step = poses[next]
             _ui.value = state.copy(
                 stepIndex = next,
                 collectedInStep = 0,
@@ -202,12 +254,37 @@ class EnrollmentViewModel @Inject constructor(
         }
     }
 
+    /** Saves the verified capture as a temporary guest that stops being trusted after [durationMs]. */
+    fun saveGuest(durationMs: Long, onDone: () -> Unit) {
+        if (_ui.value.phase != EnrollPhase.VERIFIED || embeddings.isEmpty()) return
+        viewModelScope.launch {
+            val until = System.currentTimeMillis() + durationMs
+            val id = people.addPerson(
+                name = "Guest",
+                photoPath = photoPath,
+                embeddings = emptyList(),
+                expiresAt = until,
+            )
+            embeddings.forEachIndexed { i, e ->
+                people.addSample(id, e, photos.getOrNull(i), qualities.getOrElse(i) { 1f })
+            }
+            events.log(
+                GuardEvent.Type.ENROLLMENT,
+                "Guest pass created (${durationMs / 60_000} min)",
+            )
+            _ui.value = _ui.value.copy(phase = EnrollPhase.SAVED)
+            onDone()
+        }
+    }
+
     fun save(name: String, gender: String?, existingPersonId: String?, onDone: () -> Unit) {
         if (_ui.value.phase != EnrollPhase.VERIFIED || embeddings.isEmpty()) return
         viewModelScope.launch {
             val targetId = existingPersonId
                 ?: people.addPerson(name = name, photoPath = photoPath, embeddings = emptyList(), gender = gender)
-            embeddings.forEachIndexed { i, e -> people.addSample(targetId, e, photos.getOrNull(i)) }
+            embeddings.forEachIndexed { i, e ->
+                people.addSample(targetId, e, photos.getOrNull(i), qualities.getOrElse(i) { 1f })
+            }
             if (existingPersonId != null) {
                 events.log(GuardEvent.Type.ENROLLMENT, "Added ${embeddings.size} samples")
             } else {
@@ -218,8 +295,56 @@ class EnrollmentViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Combines how well the face filled the frame ([basicsScore], from
+     * [com.guardia.app.core.ml.FaceQualityAnalyzer.assessBasics]) with how crisp the aligned crop
+     * actually is. Size alone is a poor proxy: a large but motion-blurred face makes a worse
+     * reference than a smaller sharp one, and it is the blurred references that cause false accepts
+     * later, because a blurred embedding sits close to everybody.
+     */
+    private fun captureQuality(basicsScore: Float, aligned: android.graphics.Bitmap): Float {
+        val sharp = runCatching { BitmapUtils.sharpness(aligned) }.getOrDefault(SHARP_REFERENCE)
+        val sharpScore = (sharp / SHARP_REFERENCE).coerceIn(0f, 1f)
+        return (0.4f * basicsScore.coerceIn(0f, 1f) + 0.6f * sharpScore).coerceIn(0.1f, 1f)
+    }
+
+    /**
+     * Best already-enrolled match for the freshly captured face, or null when nobody comes close.
+     * Compares only same-pipeline-version samples (cross-version cosine is meaningless), and uses
+     * a deliberately high bar so the "same person?" prompt only appears when it's probably right.
+     */
+    private suspend fun findDuplicate(): DuplicateHit? {
+        val enrolled = people.enrolledFaces().filter { it.modelVersion == EmbeddingMath.VERSION }
+        if (enrolled.isEmpty() || embeddings.isEmpty()) return null
+        var best: DuplicateHit? = null
+        for ((personId, faces) in enrolled.groupBy { it.personId }) {
+            var sim = 0f
+            for (f in faces) {
+                for (e in embeddings) {
+                    val c = EmbeddingMath.cosine(e, f.embedding)
+                    if (c > sim) sim = c
+                }
+            }
+            if (sim > (best?.similarity ?: 0f)) {
+                best = DuplicateHit(personId, faces.first().name, sim, faces.first().blocked)
+            }
+        }
+        return best?.takeIf { it.similarity >= DUPLICATE_THRESHOLD }
+    }
+
     private fun update(message: String) {
         _ui.value = _ui.value.copy(message = message)
+    }
+
+    private companion object {
+        /** Cosine bar for the "already enrolled?" prompt — high enough to rarely be wrong. */
+        const val DUPLICATE_THRESHOLD = 0.60f
+
+        /**
+         * Sharpness (see [BitmapUtils.sharpness]) at which a capture is considered fully crisp.
+         * Anything at or above this scores 1.0; below it, quality falls off proportionally.
+         */
+        const val SHARP_REFERENCE = 14f
     }
 
     private fun savePhoto(crop: Bitmap): String {

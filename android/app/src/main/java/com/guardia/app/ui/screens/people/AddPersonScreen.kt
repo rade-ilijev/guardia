@@ -5,6 +5,7 @@ import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,7 +21,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.border
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -28,13 +28,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -53,8 +48,16 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.guardia.app.ui.components.AnalysisCamera
+import com.guardia.app.ui.components.Button
+import com.guardia.app.ui.components.CircularProgressIndicator
+import com.guardia.app.ui.components.FilterChip
 import com.guardia.app.ui.components.GuardiaCard
 import com.guardia.app.ui.components.GuardiaScaffold
+import com.guardia.app.ui.components.LinearProgressIndicator
+import com.guardia.app.ui.components.OutlinedButton
+import com.guardia.app.ui.components.OutlinedTextField
+import com.guardia.app.ui.components.TextButton
+import com.guardia.app.ui.theme.Guardia
 import com.guardia.app.ui.theme.Spacing
 
 @Composable
@@ -71,32 +74,77 @@ fun AddPersonScreen(
         )
     }
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { hasCamera = it }
-    var name by remember { mutableStateOf("") }
-    var gender by remember { mutableStateOf<String?>(null) }
+    var name by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("") }
+    var gender by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(null) }
     val addingSamples = personId != null
+    // Step 0 asks who this is; step 1 is the camera. Adding samples to a known person skips ahead.
+    var step by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(if (addingSamples) 1 else 0) }
+
+    val goBack: () -> Unit = { if (step == 1 && !addingSamples) step = 0 else onDone() }
+
+    // The camera step begins the guided capture on its own — no extra "start" tap.
+    androidx.compose.runtime.LaunchedEffect(step, hasCamera) {
+        if (step == 1 && hasCamera && ui.phase == EnrollPhase.READY) {
+            viewModel.start(checkDuplicates = !addingSamples)
+        }
+    }
+
+    // The freshly captured face strongly matches someone already enrolled — ask, don't duplicate.
+    ui.duplicate?.let { dup ->
+        if (ui.phase == EnrollPhase.VERIFIED && !addingSamples) {
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = viewModel::dismissDuplicate,
+                title = { Text("Already enrolled?") },
+                text = {
+                    Text(
+                        "This face matches ${dup.name} (${(dup.similarity * 100).toInt()}%)" +
+                            (if (dup.blocked) " — currently on your block list" else "") +
+                            ". Is it the same person?",
+                    )
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = { viewModel.save(name, gender, dup.personId, onDone) },
+                    ) { Text("Yes, add to ${dup.name}") }
+                },
+                dismissButton = {
+                    TextButton(onClick = viewModel::dismissDuplicate) {
+                        Text("No, someone new")
+                    }
+                },
+            )
+        }
+    }
 
     GuardiaScaffold(
-        title = if (addingSamples) "Add more samples" else "Enroll a person",
-        onBack = onDone,
+        title = when {
+            addingSamples -> "Add more samples"
+            step == 0 -> "New person"
+            else -> "Scan face"
+        },
+        onBack = goBack,
         bottomBar = {
-            if (hasCamera) {
-                Surface(color = Color.Transparent) {
+            when {
+                step == 0 -> Surface(color = Color.Transparent) {
+                    Column(modifier = Modifier.fillMaxWidth().padding(Spacing.screen)) {
+                        Button(
+                            onClick = { step = 1 },
+                            enabled = name.isNotBlank(),
+                            modifier = Modifier.fillMaxWidth().height(56.dp),
+                        ) { Text("Continue to face scan") }
+                    }
+                }
+                hasCamera -> Surface(color = Color.Transparent) {
                     Column(
                         modifier = Modifier.fillMaxWidth().padding(Spacing.screen),
                         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
                     ) {
                         when (ui.phase) {
-                            EnrollPhase.READY -> Button(
-                                onClick = viewModel::start,
-                                enabled = addingSamples || name.isNotBlank(),
-                                modifier = Modifier.fillMaxWidth().height(56.dp),
-                            ) { Text("Start capture") }
-
                             EnrollPhase.VERIFIED -> {
                                 Button(
                                     onClick = { viewModel.save(name, gender, personId, onDone) },
                                     modifier = Modifier.fillMaxWidth().height(56.dp),
-                                ) { Text(if (addingSamples) "Save samples" else "Save person") }
+                                ) { Text(if (addingSamples) "Save samples" else "Save ${name.ifBlank { "person" }}") }
                                 OutlinedButton(onClick = viewModel::retry, modifier = Modifier.fillMaxWidth()) {
                                     Text("Recapture")
                                 }
@@ -112,9 +160,58 @@ fun AddPersonScreen(
                         }
                     }
                 }
+                else -> {}
             }
         },
     ) { padding ->
+        if (step == 0) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .verticalScroll(rememberScrollState())
+                    .padding(Spacing.screen),
+                verticalArrangement = Arrangement.spacedBy(Spacing.md),
+            ) {
+                GuardiaCard(modifier = Modifier.fillMaxWidth()) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(Spacing.lg),
+                        verticalArrangement = Arrangement.spacedBy(Spacing.md),
+                    ) {
+                        Text("Who is this?", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text(
+                            "Name first, then a quick guided face scan. Guardia recognizes this person and stays calm while they're using the phone.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        OutlinedTextField(
+                            value = name,
+                            onValueChange = { name = it },
+                            label = { Text("Name") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text("Gender", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Spacer(Modifier.width(Spacing.sm))
+                            listOf("MALE" to "Male", "FEMALE" to "Female").forEach { (key, label) ->
+                                FilterChip(
+                                    selected = gender == key,
+                                    onClick = { gender = if (gender == key) null else key },
+                                    label = { Text(label) },
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            return@GuardiaScaffold
+        }
+
         if (!hasCamera) {
             Box(Modifier.fillMaxSize().padding(padding).padding(Spacing.screen), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -137,35 +234,9 @@ fun AddPersonScreen(
             verticalArrangement = Arrangement.spacedBy(Spacing.md),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            if (!addingSamples) {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text("Name") },
-                    singleLine = true,
-                    enabled = ui.phase == EnrollPhase.READY,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text("Gender", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(Modifier.width(Spacing.sm))
-                    listOf("MALE" to "Male", "FEMALE" to "Female").forEach { (key, label) ->
-                        androidx.compose.material3.FilterChip(
-                            selected = gender == key,
-                            onClick = { gender = if (gender == key) null else key },
-                            label = { Text(label) },
-                            enabled = ui.phase == EnrollPhase.READY,
-                        )
-                    }
-                }
-            }
 
             val ringColor = when (ui.phase) {
-                EnrollPhase.VERIFIED, EnrollPhase.SAVED -> MaterialTheme.colorScheme.primary
+                EnrollPhase.VERIFIED, EnrollPhase.SAVED -> Guardia.colors.success
                 else -> Color.White.copy(alpha = 0.6f)
             }
             Box(
@@ -187,13 +258,13 @@ fun AddPersonScreen(
                     ui.requiredPose?.let { PoseArrow(it) }
                 }
                 if (ui.phase == EnrollPhase.VERIFYING) {
-                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                    CircularProgressIndicator(color = Guardia.colors.foreground)
                 }
                 if (ui.phase == EnrollPhase.VERIFIED) {
                     Icon(
                         Icons.Filled.CheckCircle,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
+                        tint = Guardia.colors.success,
                         modifier = Modifier.size(72.dp),
                     )
                 }
@@ -273,7 +344,7 @@ private fun PoseArrow(pose: com.guardia.app.core.ml.FaceQualityAnalyzer.HeadPose
         Icon(
             icon,
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
+            tint = Guardia.colors.success,
             modifier = Modifier
                 .offset(x = dx.dp, y = dy.dp)
                 .size(48.dp),
@@ -291,7 +362,7 @@ private data class Quad(
 @Composable
 private fun PoseChip(label: String, done: Boolean, active: Boolean) {
     val color = when {
-        done -> MaterialTheme.colorScheme.primary
+        done -> Guardia.colors.success
         active -> MaterialTheme.colorScheme.onSurface
         else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
     }

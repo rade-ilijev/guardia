@@ -27,13 +27,8 @@ import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PhotoLibrary
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -54,12 +49,18 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import com.guardia.app.ui.components.Button
+import com.guardia.app.ui.components.CircularProgressIndicator
+import com.guardia.app.ui.components.FilledTonalButton
 import com.guardia.app.ui.components.GuardiaCard
 import com.guardia.app.ui.components.GuardiaScaffold
+import com.guardia.app.ui.components.LinearProgressIndicator
+import com.guardia.app.ui.components.OutlinedButton
 import com.guardia.app.ui.components.SectionHeader
+import com.guardia.app.ui.theme.Guardia
 import com.guardia.app.ui.theme.Spacing
-import kotlinx.coroutines.launch
 import java.io.File
+import kotlinx.coroutines.launch
 
 @Composable
 fun GalleryImportScreen(
@@ -261,7 +262,7 @@ private fun DoneContent(ui: GalleryImportUi, onChoose: () -> Unit, onBack: () ->
     SectionHeader("All done")
     GuardiaCard(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.fillMaxWidth().padding(Spacing.lg), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-            SummaryRow("Confirmed as this person", ui.confirmed, MaterialTheme.colorScheme.primary)
+            SummaryRow("Confirmed as this person", ui.confirmed, Guardia.colors.success)
             SummaryRow("Marked as someone else", ui.declined, MaterialTheme.colorScheme.onSurfaceVariant)
             SummaryRow("Blacklisted", ui.blacklisted, MaterialTheme.colorScheme.error)
         }
@@ -286,7 +287,7 @@ private fun SummaryRow(label: String, count: Int, color: Color) {
 
 @Composable
 private fun matchColor(percent: Int): Color = when {
-    percent >= 70 -> MaterialTheme.colorScheme.primary
+    percent >= 70 -> Guardia.colors.success
     percent >= 45 -> MaterialTheme.colorScheme.tertiary
     else -> MaterialTheme.colorScheme.onSurfaceVariant
 }

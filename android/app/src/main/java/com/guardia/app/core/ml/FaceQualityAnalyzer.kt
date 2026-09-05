@@ -24,6 +24,20 @@ class FaceQualityAnalyzer @Inject constructor() {
             .build()
     )
 
+    // The background guard loop runs a detection on every check, so it uses FAST mode: noticeably
+    // cheaper per frame, which shortens how long the camera (and the OS privacy indicator) stays on.
+    // Landmarks stay on because FaceAligner needs the eye positions for the canonical crop, and
+    // classification stays on because the liveness/blink signals need eye-open probabilities.
+    // Enrollment keeps the ACCURATE detector above — reference embeddings deserve the better boxes.
+    private val fastDetector = FaceDetection.getClient(
+        FaceDetectorOptions.Builder()
+            .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
+            .setLandmarkMode(FaceDetectorOptions.LANDMARK_MODE_ALL)
+            .setClassificationMode(FaceDetectorOptions.CLASSIFICATION_MODE_ALL)
+            .setMinFaceSize(0.15f)
+            .build()
+    )
+
     data class Quality(val ok: Boolean, val reason: String, val score: Float)
 
     /** Discrete head orientations used to guide multi-angle enrollment. */
@@ -32,6 +46,13 @@ class FaceQualityAnalyzer @Inject constructor() {
     /** Detects faces on an upright bitmap (rotation already applied). */
     suspend fun detect(bitmap: Bitmap): List<Face> = suspendCancellableCoroutine { cont ->
         detector.process(InputImage.fromBitmap(bitmap, 0))
+            .addOnSuccessListener { if (cont.isActive) cont.resume(it) }
+            .addOnFailureListener { if (cont.isActive) cont.resume(emptyList()) }
+    }
+
+    /** FAST-mode detection for the recurring guard checks (see [fastDetector] for the trade-off). */
+    suspend fun detectFast(bitmap: Bitmap): List<Face> = suspendCancellableCoroutine { cont ->
+        fastDetector.process(InputImage.fromBitmap(bitmap, 0))
             .addOnSuccessListener { if (cont.isActive) cont.resume(it) }
             .addOnFailureListener { if (cont.isActive) cont.resume(emptyList()) }
     }

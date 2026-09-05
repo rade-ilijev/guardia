@@ -2,7 +2,7 @@
 <!--
     Monochrome status-bar / notification icon. Android renders notification small icons as an
     alpha mask (tinted white by the system), so this must be a single flat silhouette with no
-    colors or gradients. A shield with a ring cut-out echoes the Guardia mark at 24dp.
+    colors or gradients. The Sentinel shield with its scan notch and center eye, tuned for 24dp.
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
@@ -10,7 +10,13 @@
     android:viewportWidth="24"
     android:viewportHeight="24">
     <path
-        android:fillColor="#FFFFFFFF"
-        android:fillType="evenOdd"
-        android:pathData="M12,2 L20,5 L20,11 C20,16 16.5,20.2 12,22 C7.5,20.2 4,16 4,11 L4,5 Z M12,8.4 C13.99,8.4 15.6,10.01 15.6,12 C15.6,13.99 13.99,15.6 12,15.6 C10.01,15.6 8.4,13.99 8.4,12 C8.4,10.01 10.01,8.4 12,8.4 Z M12,10.2 C11.01,10.2 10.2,11.01 10.2,12 C10.2,12.99 11.01,13.8 12,13.8 C12.99,13.8 13.8,12.99 13.8,12 L12,12 Z" />
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M14.27,8.3 L15.67,8.89 L15.67,12.22 C15.67,14.56 14.11,16 12,16.89 C9.89,16 8.33,14.56 8.33,12.22 L8.33,8.89 L12,7.33 L12.44,7.52" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M12,11.67m-1.1,0a1.1,1.1 0,1 1,2.2 0a1.1,1.1 0,1 1,-2.2 0" />
 </vector>

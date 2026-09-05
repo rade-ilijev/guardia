@@ -71,6 +71,16 @@ class SettingsViewModel @Inject constructor(
     val crashLogEnabled: StateFlow<Boolean> = prefs.crashLogEnabled
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
+    // --- Trusted Wi-Fi ---
+    val trustedWifiEnabled: StateFlow<Boolean> = prefs.trustedWifiEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+    val trustedSsids: StateFlow<Set<String>> = prefs.trustedSsids
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
+
+    fun setTrustedWifiEnabled(value: Boolean) = viewModelScope.launch { prefs.setTrustedWifiEnabled(value) }
+    fun toggleTrustedSsid(ssid: String) = viewModelScope.launch { prefs.toggleTrustedSsid(ssid) }
+    fun currentSsid(): String? = com.guardia.app.core.system.WifiTrust.currentSsid(context)
+
     fun setCrashLogEnabled(value: Boolean) = viewModelScope.launch { prefs.setCrashLogEnabled(value) }
     fun readCrashLog(): String = com.guardia.app.core.system.CrashLogger.read(context)
     fun clearCrashLog() = com.guardia.app.core.system.CrashLogger.clear(context)
@@ -126,11 +136,29 @@ class SettingsViewModel @Inject constructor(
         prefs.setVoiceListeningMode(mode)
         when (mode) {
             1 -> VoiceController.start(context)
-            0 -> VoiceController.stop(context)
+            // Off and Fallback both stop the always-on listener; Fallback re-arms on its own from
+            // the guard loop's no-face streak.
+            0, 2 -> VoiceController.stop(context)
         }
     }
 
     fun setTestMode(value: Boolean) = viewModelScope.launch { prefs.setTestMode(value) }
+
+    /** Days intruder photos are kept before automatic deletion; 0 = keep forever. */
+    val evidenceRetentionDays: StateFlow<Int> = prefs.evidenceRetentionDays
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
+    /**
+     * Sets the retention window and applies it immediately, reporting how many photos went.
+     *
+     * Applying on the spot matters: the sweep otherwise runs on the guard loop's housekeeping tick,
+     * so a user who picks "keep 7 days" with guarding off would see nothing happen and reasonably
+     * conclude the setting is broken.
+     */
+    fun setEvidenceRetentionDays(days: Int, onResult: (Int) -> Unit = {}) = viewModelScope.launch {
+        prefs.setEvidenceRetentionDays(days)
+        onResult(intruders.purgeOlderThan(days))
+    }
 
     fun clearActivityLog() = viewModelScope.launch { events.clear() }
     fun clearIntruderPhotos() = viewModelScope.launch { intruders.clear() }

@@ -12,9 +12,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -30,15 +30,10 @@ import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -56,14 +51,23 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.guardia.app.domain.model.Person
+import com.guardia.app.ui.components.Button
+import com.guardia.app.ui.components.FilterChip
 import com.guardia.app.ui.components.GuardiaCard
 import com.guardia.app.ui.components.GuardiaScaffold
 import com.guardia.app.ui.components.IconChip
+import com.guardia.app.ui.components.LinearProgressIndicator
+import com.guardia.app.ui.components.OutlinedButton
+import com.guardia.app.ui.components.OutlinedTextField
 import com.guardia.app.ui.components.SectionHeader
 import com.guardia.app.ui.components.StatTile
+import com.guardia.app.ui.components.TextButton
+import com.guardia.app.ui.theme.Guardia
 import com.guardia.app.ui.theme.Spacing
 import java.io.File
 import kotlin.math.roundToInt
+import com.guardia.app.ui.components.GlassIconButton
+import androidx.compose.foundation.layout.width
 
 @Composable
 fun PersonDetailScreen(
@@ -82,8 +86,14 @@ fun PersonDetailScreen(
         title = person?.name ?: "Person",
         onBack = onBack,
         actions = {
-            IconButton(onClick = { showRename = true }) { Icon(Icons.Filled.Edit, contentDescription = "Rename") }
-            IconButton(onClick = { showDelete = true }) { Icon(Icons.Filled.Delete, contentDescription = "Delete") }
+            GlassIconButton(Icons.Filled.Edit, { showRename = true }, contentDescription = "Rename")
+            Spacer(Modifier.width(Spacing.sm))
+            GlassIconButton(
+                Icons.Filled.Delete,
+                { showDelete = true },
+                contentDescription = "Delete",
+                tint = Guardia.colors.destructive,
+            )
         },
     ) { padding ->
         Column(
@@ -183,7 +193,7 @@ fun PersonDetailScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     listOf("MALE" to "Male", "FEMALE" to "Female").forEach { (key, label) ->
-                        androidx.compose.material3.FilterChip(
+                        FilterChip(
                             selected = person?.gender == key,
                             onClick = { viewModel.setGender(if (person?.gender == key) null else key) },
                             label = { Text(label) },
@@ -281,7 +291,7 @@ fun PersonDetailScreen(
 @Composable
 private fun ProfileHeader(person: Person?) {
     val blocked = person?.blocked == true
-    val accent = if (blocked) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+    val accent = if (blocked) Guardia.colors.destructive else Guardia.colors.success
     GuardiaCard(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(Spacing.lg),
@@ -376,8 +386,8 @@ private fun TrainingPhotos(
 @Composable
 private fun QualityCard(sampleCount: Int) {
     val (label, frac, color) = when {
-        sampleCount >= 5 -> Triple("Excellent", 1f, MaterialTheme.colorScheme.primary)
-        sampleCount >= 3 -> Triple("Good", 0.7f, MaterialTheme.colorScheme.primary)
+        sampleCount >= 5 -> Triple("Excellent", 1f, Guardia.colors.success)
+        sampleCount >= 3 -> Triple("Good", 0.7f, Guardia.colors.success)
         sampleCount >= 1 -> Triple("Basic", 0.35f, MaterialTheme.colorScheme.tertiary)
         else -> Triple("No samples", 0.05f, MaterialTheme.colorScheme.error)
     }
@@ -425,7 +435,7 @@ private fun RenameDialog(
     val valid = trimmed.isNotEmpty() && trimmed != currentName && trimmed.length <= 30
     AlertDialog(
         onDismissRequest = onDismiss,
-        icon = { Icon(Icons.Filled.Edit, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+        icon = { Icon(Icons.Filled.Edit, contentDescription = null, tint = Guardia.colors.foreground) },
         title = { Text("Rename person") },
         text = {
             Column {

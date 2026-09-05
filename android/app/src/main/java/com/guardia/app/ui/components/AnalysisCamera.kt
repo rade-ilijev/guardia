@@ -14,6 +14,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.guardia.app.core.ml.AnalysisConfig
 import java.util.concurrent.Executors
 
 /**
@@ -46,9 +47,7 @@ fun AnalysisCamera(
                 runCatching {
                     val provider = future.get()
                     val preview = Preview.Builder().build().also { it.setSurfaceProvider(previewView.surfaceProvider) }
-                    val analysis = ImageAnalysis.Builder()
-                        .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                        .build()
+                    val analysis = AnalysisConfig.builder().build()
                     analysis.setAnalyzer(executor) { proxy ->
                         val rotation = proxy.imageInfo.rotationDegrees
                         val bmp = runCatching { proxy.toBitmap() }.getOrNull()

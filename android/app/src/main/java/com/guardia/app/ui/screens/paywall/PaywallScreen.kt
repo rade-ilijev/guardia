@@ -16,18 +16,15 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.PhonelinkLock
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.WorkspacePremium
-import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -43,9 +40,13 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.guardia.app.core.billing.BillingManager
+import com.guardia.app.ui.components.Button
 import com.guardia.app.ui.components.GuardiaCard
 import com.guardia.app.ui.components.GuardiaScaffold
+import com.guardia.app.ui.components.OutlinedButton
+import com.guardia.app.ui.components.TextButton
 import com.guardia.app.ui.screens.settings.AccountViewModel
+import com.guardia.app.ui.theme.Guardia
 import com.guardia.app.ui.theme.Spacing
 
 private data class PremiumFeature(val icon: ImageVector, val title: String, val subtitle: String)
@@ -93,14 +94,14 @@ fun PaywallScreen(
                     .background(
                         Brush.verticalGradient(
                             listOf(
-                                MaterialTheme.colorScheme.primary.copy(alpha = 0.25f),
-                                MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
+                                Guardia.colors.muted,
+                                Guardia.colors.card,
                             )
                         )
                     ),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(Icons.Filled.WorkspacePremium, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(44.dp))
+                Icon(Icons.Filled.WorkspacePremium, contentDescription = null, tint = Guardia.colors.foreground, modifier = Modifier.size(44.dp))
             }
             Spacer(Modifier.height(Spacing.md))
             Text("Unlock the full guard", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
@@ -117,7 +118,7 @@ fun PaywallScreen(
                 Column(Modifier.fillMaxWidth().padding(Spacing.lg)) {
                     premiumFeatures.forEachIndexed { i, f ->
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = Spacing.sm)) {
-                            Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                            Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = Guardia.colors.success)
                             Spacer(Modifier.size(Spacing.md))
                             Column(Modifier.weight(1f)) {
                                 Text(f.title, style = MaterialTheme.typography.titleMedium)
@@ -130,7 +131,7 @@ fun PaywallScreen(
 
             Spacer(Modifier.height(Spacing.lg))
             if (premium) {
-                Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(40.dp))
+                Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = Guardia.colors.success, modifier = Modifier.size(40.dp))
                 Spacer(Modifier.height(Spacing.sm))
                 Text("Premium is active", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(Spacing.md))
@@ -143,7 +144,7 @@ fun PaywallScreen(
                 )
                 trial?.let {
                     Spacer(Modifier.height(Spacing.xs))
-                    Text("Start with a $it free trial", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+                    Text("Start with a $it free trial", style = MaterialTheme.typography.bodyMedium, color = Guardia.colors.foreground, fontWeight = FontWeight.SemiBold)
                 }
                 Spacer(Modifier.height(Spacing.md))
                 when (status) {

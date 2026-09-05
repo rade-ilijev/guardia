@@ -6,6 +6,7 @@ import android.graphics.BitmapFactory
 import android.graphics.Matrix
 import android.media.ExifInterface
 import android.net.Uri
+import androidx.compose.runtime.Immutable
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -16,17 +17,17 @@ import com.guardia.app.core.ml.FaceQualityAnalyzer
 import com.guardia.app.data.PeopleRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import java.io.ByteArrayOutputStream
+import java.io.File
+import java.util.UUID
+import javax.inject.Inject
+import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.ByteArrayOutputStream
-import java.io.File
-import java.util.UUID
-import javax.inject.Inject
-import kotlin.math.roundToInt
 
 enum class ImportPhase { IDLE, SCANNING, REVIEW, DONE }
 
@@ -38,6 +39,14 @@ data class ImportCandidate(
     val matchPercent: Int,
 )
 
+/**
+ * Marked `@Immutable` for Compose: it holds a `List`, and Compose treats every `List` as unstable
+ * because the interface allows a mutable implementation. Without the annotation, any composable
+ * reading this state is re-run on *every* recomposition of its parent, even when the state itself
+ * has not changed. The contents genuinely are never mutated after construction, so the promise is
+ * safe to make — and it is what lets Compose skip the subtree.
+ */
+@Immutable
 data class GalleryImportUi(
     val phase: ImportPhase = ImportPhase.IDLE,
     val scanned: Int = 0,

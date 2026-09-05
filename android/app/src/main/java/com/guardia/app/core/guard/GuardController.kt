@@ -17,6 +17,9 @@ object GuardController {
     private val _state = MutableStateFlow(GuardState.STOPPED)
     val state: StateFlow<GuardState> = _state.asStateFlow()
 
+    /** True while guarding is relaxed because the device is on a trusted Wi-Fi network. */
+    val relaxedOnTrustedWifi = MutableStateFlow(false)
+
     val isProtected: Boolean
         get() = _state.value == GuardState.PROTECTED
 
@@ -24,11 +27,24 @@ object GuardController {
         if (_state.value == GuardState.PROTECTED) return
         _state.value = GuardState.PROTECTED
         GuardService.start(context.applicationContext)
+        refreshWidgets(context)
     }
 
     fun stop(context: Context) {
         _state.value = GuardState.STOPPED
         GuardService.stop(context.applicationContext)
+        refreshWidgets(context)
+    }
+
+    /**
+     * Redraws any home-screen widgets. Kept here because this object is the one place guarding
+     * state actually changes — hooking it anywhere else would eventually drift out of sync.
+     * No-ops when no widget is placed, and never throws into a caller.
+     */
+    private fun refreshWidgets(context: Context) {
+        runCatching {
+            com.guardia.app.core.widget.GuardiaWidget.refresh(context.applicationContext)
+        }
     }
 
     fun toggle(context: Context) {

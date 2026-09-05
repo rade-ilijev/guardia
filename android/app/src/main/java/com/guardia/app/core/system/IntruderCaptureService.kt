@@ -17,20 +17,25 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
 import com.guardia.app.R
+import com.guardia.app.core.ml.AnalysisConfig
 import com.guardia.app.core.ml.BitmapUtils
 import com.guardia.app.data.EventsRepository
 import com.guardia.app.data.IntruderRepository
 import com.guardia.app.domain.model.GuardEvent
 import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /**
- * Grabs a single front-camera frame (best-effort) and stores it encrypted. Started
- * from [GuardDeviceAdminReceiver] on a wrong device unlock.
+ * Grabs a short burst of front-camera frames (best-effort) and stores them encrypted. Started
+ * from [GuardDeviceAdminReceiver] on a wrong device unlock and from the PIN gates.
+ *
+ * A single frame often catches the intruder mid-motion or before auto-exposure settles; a burst
+ * of [BURST_COUNT] shots spaced [BURST_SPACING_MS] apart turns "maybe evidence" into evidence,
+ * while still keeping the camera open for well under ~4 seconds total.
  *
  * Note: capturing while the keyguard is up from a background-started service is
  * restricted on newer Android and varies by OEM; this is best-effort by design.
@@ -42,7 +47,11 @@ class IntruderCaptureService : LifecycleService() {
     @Inject lateinit var events: EventsRepository
 
     private val executor = Executors.newSingleThreadExecutor()
-    private val captured = AtomicBoolean(false)
+    private val shotCount = java.util.concurrent.atomic.AtomicInteger(0)
+    /** Frames seen since the camera opened; the first few are discarded for auto-exposure. */
+    private val frameCount = java.util.concurrent.atomic.AtomicInteger(0)
+    @Volatile private var lastShotAt = 0L
+    private val finished = AtomicBoolean(false)
     private var provider: ProcessCameraProvider? = null
     private var cameraTracked = false
 
@@ -61,8 +70,8 @@ class IntruderCaptureService : LifecycleService() {
         if (hasCameraPermission()) {
             startCapture(source)
             lifecycleScope.launch {
-                delay(4000)
-                if (!captured.get()) finish()
+                delay(BURST_TIMEOUT_MS)
+                finish()
             }
         } else {
             lifecycleScope.launch {
@@ -79,29 +88,35 @@ class IntruderCaptureService : LifecycleService() {
             runCatching {
                 val cameraProvider = future.get()
                 provider = cameraProvider
-                val analysis = ImageAnalysis.Builder()
-                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                    .build()
+                val analysis = AnalysisConfig.builder().build()
                 analysis.setAnalyzer(executor) { proxy ->
-                    if (captured.compareAndSet(false, true)) {
-                        val rotation = proxy.imageInfo.rotationDegrees
-                        val raw = runCatching { proxy.toBitmap() }.getOrNull()
+                    val rotation = proxy.imageInfo.rotationDegrees
+                    // Discard warm-up frames (auto-exposure settling) and pace the burst.
+                    val now = android.os.SystemClock.elapsedRealtime()
+                    val due = frameCount.incrementAndGet() > WARMUP_FRAMES &&
+                        shotCount.get() < BURST_COUNT &&
+                        (lastShotAt == 0L || now - lastShotAt >= BURST_SPACING_MS)
+                    if (!due) {
                         proxy.close()
-                        // Apply the sensor rotation so the stored selfie is upright, not sideways.
-                        val bmp = raw?.let { runCatching { BitmapUtils.rotate(it, rotation) }.getOrNull() ?: it }
-                        if (bmp != null) {
-                            lifecycleScope.launch {
-                                val path = runCatching {
-                                    intruders.saveCapture(BitmapUtils.toJpeg(bmp), source)
-                                }.getOrNull()
-                                events.log(GuardEvent.Type.WRONG_UNLOCK, "$source - photo captured", path)
-                                finish()
-                            }
-                        } else {
-                            finish()
+                        return@setAnalyzer
+                    }
+                    lastShotAt = now
+                    val raw = runCatching { proxy.toBitmap() }.getOrNull()
+                    proxy.close()
+                    if (raw == null) return@setAnalyzer
+                    val shot = shotCount.incrementAndGet()
+                    // Apply the sensor rotation so the stored selfie is upright, not sideways.
+                    val bmp = runCatching { BitmapUtils.rotate(raw, rotation) }.getOrNull() ?: raw
+                    lifecycleScope.launch {
+                        val path = runCatching {
+                            intruders.saveCapture(BitmapUtils.toJpeg(bmp), source)
+                        }.getOrNull()
+                        // One timeline entry per incident (the extra shots land in the
+                        // Intruders gallery alongside it).
+                        if (shot == 1) {
+                            events.log(GuardEvent.Type.WRONG_UNLOCK, "$source - photos captured", path)
                         }
-                    } else {
-                        proxy.close()
+                        if (shot >= BURST_COUNT) finish()
                     }
                 }
                 cameraProvider.unbindAll()
@@ -117,10 +132,17 @@ class IntruderCaptureService : LifecycleService() {
     }
 
     private fun finish() {
+        // Called from both the burst completion and the timeout watchdog; run teardown once.
+        if (!finished.compareAndSet(false, true)) return
         runCatching { provider?.unbindAll() }
         if (cameraTracked) { GuardiaCameraMic.exitCamera(); cameraTracked = false }
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
+    }
+
+    override fun onDestroy() {
+        executor.shutdown()
+        super.onDestroy()
     }
 
     private fun hasCameraPermission(): Boolean =
@@ -146,6 +168,14 @@ class IntruderCaptureService : LifecycleService() {
             }
         }
         if (typed.isSuccess) return true
+        // The camera-typed start was refused — almost always because we're a background process on
+        // Android 12+ without an exemption (grant "Display over other apps" to fix). Log the real
+        // reason so a device test shows it, then try a plain start as a last resort.
+        android.util.Log.w(
+            "IntruderCapture",
+            "camera FGS start refused (background camera restriction — needs overlay permission)",
+            typed.exceptionOrNull(),
+        )
         return runCatching { startForeground(NOTIFICATION_ID, notification) }.isSuccess
     }
 
@@ -153,6 +183,14 @@ class IntruderCaptureService : LifecycleService() {
         private const val CHANNEL_ID = "guardia_intruder_capture"
         private const val NOTIFICATION_ID = 1002
         const val EXTRA_SOURCE = "source"
+        /** Shots per incident. */
+        private const val BURST_COUNT = 3
+        /** Spacing between shots — long enough that the intruder has moved/looked up. */
+        private const val BURST_SPACING_MS = 700L
+        /** Frames discarded after the camera opens so auto-exposure can settle. */
+        private const val WARMUP_FRAMES = 2
+        /** Hard cap on how long the camera may stay open for one incident. */
+        private const val BURST_TIMEOUT_MS = 5_000L
 
         fun start(context: Context, source: String) {
             val intent = Intent(context, IntruderCaptureService::class.java).putExtra(EXTRA_SOURCE, source)

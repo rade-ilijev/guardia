@@ -10,6 +10,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -23,17 +24,22 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.semantics.Role
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material3.Icon
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
@@ -184,11 +190,19 @@ fun GlassIconButton(
     Box(
         modifier = modifier
             .graphicsLayer { scaleX = scale; scaleY = scale }
+            // The disc stays 40dp because a bigger one would crowd the title row; the *target*
+            // grows to the 48dp minimum underneath it, which is what a thumb actually needs.
+            .minimumInteractiveComponentSize()
             .size(40.dp)
             .clip(CircleShape)
             .background(c.card.copy(alpha = 0.72f))
             .border(BorderStroke(1.dp, c.border), CircleShape)
-            .clickable(interactionSource = interaction, indication = null, onClick = onClick),
+            .clickable(
+                interactionSource = interaction,
+                indication = null,
+                role = Role.Button,
+                onClick = onClick,
+            ),
         contentAlignment = Alignment.Center,
     ) {
         Icon(
@@ -258,7 +272,7 @@ private fun RowScaffold(
     leading: ImageVector?,
     enabled: Boolean,
     premium: Boolean,
-    onClick: (() -> Unit)?,
+    interaction: Modifier,
     leadingTint: Color? = null,
     trailing: @Composable () -> Unit,
 ) {
@@ -266,16 +280,11 @@ private fun RowScaffold(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .then(
-                if (onClick != null && enabled)
-                    Modifier.clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = onClick,
-                    )
-                else Modifier,
-            )
-            .alpha(if (enabled) 1f else 0.45f)
+            // 48dp is the smallest target a person can reliably hit; a title-only row was landing
+            // at 44. The padding still sets the rhythm for everything taller than that.
+            .heightIn(min = 48.dp)
+            .then(interaction)
+            .alpha(if (enabled) 1f else 0.6f)
             .padding(horizontal = Spacing.lg, vertical = Spacing.md),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -311,7 +320,21 @@ fun SwitchRow(
     enabled: Boolean = true,
     premium: Boolean = false,
 ) {
-    RowScaffold(title, subtitle, leading, enabled, premium, onClick = { onCheckedChange(!checked) }) {
+    // The whole row is the switch. Handing the interaction to `toggleable` (rather than making the
+    // row clickable and the ShSwitch a separate control) is what lets a screen reader announce this
+    // as one node — "Auto-lock, on, switch" — instead of a label and an unlabelled toggle. The
+    // trailing ShSwitch is then purely the picture of that state, so its callback stays null.
+    RowScaffold(
+        title, subtitle, leading, enabled, premium,
+        interaction = Modifier.toggleable(
+            value = checked,
+            enabled = enabled,
+            role = Role.Switch,
+            interactionSource = remember { MutableInteractionSource() },
+            indication = LocalIndication.current,
+            onValueChange = onCheckedChange,
+        ),
+    ) {
         ShSwitch(checked = checked, onCheckedChange = null, enabled = enabled)
     }
 }
@@ -328,7 +351,17 @@ fun NavRow(
     leadingTint: Color? = null,
 ) {
     val c = Guardia.colors
-    RowScaffold(title, subtitle, leading, enabled, premium, onClick = onClick, leadingTint = leadingTint) {
+    RowScaffold(
+        title, subtitle, leading, enabled, premium,
+        interaction = Modifier.clickable(
+            enabled = enabled,
+            role = Role.Button,
+            interactionSource = remember { MutableInteractionSource() },
+            indication = LocalIndication.current,
+            onClick = onClick,
+        ),
+        leadingTint = leadingTint,
+    ) {
         if (value != null) {
             Text(
                 value,
@@ -356,7 +389,17 @@ fun RadioRow(
     subtitle: String? = null,
     enabled: Boolean = true,
 ) {
-    RowScaffold(label, subtitle, leading = null, enabled = enabled, premium = false, onClick = onClick) {
+    RowScaffold(
+        label, subtitle, leading = null, enabled = enabled, premium = false,
+        interaction = Modifier.selectable(
+            selected = selected,
+            enabled = enabled,
+            role = Role.RadioButton,
+            interactionSource = remember { MutableInteractionSource() },
+            indication = LocalIndication.current,
+            onClick = onClick,
+        ),
+    ) {
         ShRadio(selected = selected, onClick = null, enabled = enabled)
     }
 }

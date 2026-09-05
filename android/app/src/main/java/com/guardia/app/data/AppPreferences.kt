@@ -119,6 +119,13 @@ class AppPreferences @Inject constructor(
     val themeMode: Flow<Int> = ds.data.map { it[KEY_THEME_MODE] ?: THEME_SYSTEM }.distinctUntilChanged()
     /** Ambient animation: 0 = follow the system animator setting, 1 = always on, 2 = off. */
     val animationsMode: Flow<Int> = ds.data.map { it[KEY_ANIMATIONS_MODE] ?: MOTION_SYSTEM }.distinctUntilChanged()
+    /**
+     * Raises every surface boundary to the 3:1 WCAG asks of a UI component edge.
+     *
+     * Off by default: the hairline border is a deliberate part of the design, and this trades that
+     * for an edge someone with low vision can actually find.
+     */
+    val highContrast: Flow<Boolean> = ds.data.map { it[KEY_HIGH_CONTRAST] ?: false }.distinctUntilChanged()
     /** Whether the lock screen offers fingerprint / face unlock as an alternative to the real PIN. */
     val decoyPinSet: Flow<Boolean> = ds.data.map { it[KEY_PIN_DECOY] != null }.distinctUntilChanged()
     /** Whether a recovery code exists — the only way back in if the real PIN is forgotten. */
@@ -246,6 +253,7 @@ class AppPreferences @Inject constructor(
     suspend fun setEvidenceRetentionDays(value: Int) = ds.edit { it[KEY_EVIDENCE_RETENTION] = value.coerceAtLeast(0) }
     suspend fun setThemeMode(value: Int) = ds.edit { it[KEY_THEME_MODE] = value.coerceIn(0, 2) }
     suspend fun setAnimationsMode(value: Int) = ds.edit { it[KEY_ANIMATIONS_MODE] = value.coerceIn(0, 2) }
+    suspend fun setHighContrast(value: Boolean) = ds.edit { it[KEY_HIGH_CONTRAST] = value }
     suspend fun setGuardingEnabled(value: Boolean) = ds.edit { it[KEY_GUARDING_ENABLED] = value }
     suspend fun setResponsiveness(level: Int) = ds.edit { it[KEY_RESPONSIVENESS] = level }
     suspend fun setIntervalCheckEnabled(value: Boolean) = ds.edit { it[KEY_INTERVAL_ENABLED] = value }
@@ -494,6 +502,7 @@ class AppPreferences @Inject constructor(
         private val KEY_EVIDENCE_RETENTION = intPreferencesKey("evidence_retention_days")
         private val KEY_THEME_MODE = intPreferencesKey("theme_mode")
         private val KEY_ANIMATIONS_MODE = intPreferencesKey("animations_mode")
+        private val KEY_HIGH_CONTRAST = booleanPreferencesKey("high_contrast")
         private val KEY_GUARDING_ENABLED = booleanPreferencesKey("guarding_enabled")
         private val KEY_RESPONSIVENESS = intPreferencesKey("responsiveness")
         private val KEY_INTERVAL_ENABLED = booleanPreferencesKey("interval_check_enabled")

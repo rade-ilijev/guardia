@@ -23,6 +23,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
@@ -80,7 +81,14 @@ fun StatusOrb(
         if (active) c.gradientBrand else listOf(statusColor, statusColor)
     }
 
-    Box(modifier = modifier.size(size), contentAlignment = Alignment.Center) {
+    // The gauge is a picture of a state that is spelled out in words directly beside it. Left as
+    // it was, a screen reader walked its inner nodes and then read the same state again from the
+    // label; collapsing it to nothing makes the written state the single source of that
+    // announcement. The dashboard marks that text as a live region so a change is spoken.
+    Box(
+        modifier = modifier.size(size).clearAndSetSemantics { },
+        contentAlignment = Alignment.Center,
+    ) {
         Canvas(Modifier.fillMaxSize()) {
             val centre = Offset(this.size.width / 2f, this.size.height / 2f)
             val stroke = 7.dp.toPx()

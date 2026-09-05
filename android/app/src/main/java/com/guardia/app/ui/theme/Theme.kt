@@ -68,9 +68,19 @@ data class GuardiaColors(
     val violet: Color,
     val violetSubtle: Color,
     // --- expressive ---
-    /** Cyan → aqua → deep blue. The hero ramp: primary buttons, the live gauge, brand marks. */
+    /** Cyan → aqua → deep blue. The hero ramp: the live gauge, brand marks, progress fills. */
     val gradientBrand: List<Color>,
+    /**
+     * The same ramp trimmed to the stops a *label* can sit on.
+     *
+     * [gradientBrand] is chosen for how it looks, and its bright end (light) and deep-blue end
+     * (dark) both drop the button label under 4.5:1 — in light mode white on the Cyan400 end
+     * measured 1.86:1. Decorative uses keep the full ramp; anything with text on it uses this.
+     */
+    val gradientBrandAction: List<Color>,
     val gradientDanger: List<Color>,
+    /** [gradientDanger] trimmed the same way, so a white destructive label clears 4.5:1. */
+    val gradientDangerAction: List<Color>,
     val gradientSuccess: List<Color>,
     /** Two-stop fill for a card, top to bottom. */
     val gradientCard: List<Color>,
@@ -100,18 +110,20 @@ private val LightGuardiaColors = GuardiaColors(
     borderHighlight = LightBorderHighlight,
     input = LightInput,
     ring = LightRing,
-    brand = Cyan600,
+    brand = Cyan700,
     brandForeground = Color(0xFFFFFFFF),
     brandSubtle = Cyan50,
     brandGlow = Cyan500,
-    destructive = Rose600,
-    destructiveForeground = Rose600,
+    // The 600 steps are the ones Tailwind reaches for on white, but on this page they land at
+    // 3.0–4.5:1 — readable to most people, not to everyone. The 700s keep the hue and clear AA.
+    destructive = Rose700,
+    destructiveForeground = Rose700,
     destructiveSubtle = Rose50,
-    success = Emerald600,
-    successForeground = Emerald600,
+    success = Emerald700,
+    successForeground = Emerald700,
     successSubtle = Emerald50,
-    warning = Amber600,
-    warningForeground = Amber600,
+    warning = Amber700,
+    warningForeground = Amber700,
     warningSubtle = Amber50,
     info = Blue600,
     infoForeground = Blue600,
@@ -119,7 +131,9 @@ private val LightGuardiaColors = GuardiaColors(
     violet = Violet600,
     violetSubtle = Color(0xFFF5F3FF),
     gradientBrand = listOf(Cyan400, Cyan600, DeepOcean),
+    gradientBrandAction = listOf(Cyan700, Cyan800),
     gradientDanger = listOf(Rose500, Rose600),
+    gradientDangerAction = listOf(Rose700, Rose800),
     gradientSuccess = listOf(Emerald400, Emerald600),
     gradientCard = listOf(LightCardTop, LightCardBottom),
     // Light mode gets a whisper of colour; any more and white cards stop reading as white.
@@ -171,7 +185,11 @@ private val DarkGuardiaColors = GuardiaColors(
     violet = Violet400,
     violetSubtle = Color(0xFF1C1633),
     gradientBrand = listOf(SignalCyan, DeepAqua, DeepOcean),
+    // Stops without the deep-blue end: #00201C on DeepOcean is 3.0:1, and a button label is 14sp.
+    gradientBrandAction = listOf(SignalCyan, DeepAqua),
     gradientDanger = listOf(Rose400, Rose600),
+    // White on Rose400 is 2.7:1 — the one place dark mode failed too.
+    gradientDangerAction = listOf(Rose600, Rose800),
     gradientSuccess = listOf(Emerald300, Emerald600),
     gradientCard = listOf(DarkCardTop, DarkCardBottom),
     aurora = listOf(
@@ -239,11 +257,11 @@ private val LightColors = lightColorScheme(
     onSecondary = Color(0xFFFFFFFF),
     secondaryContainer = LightSecondary,
     onSecondaryContainer = LightSecondaryForeground,
-    tertiary = Amber600,
+    tertiary = Amber700,
     onTertiary = Color(0xFFFFFFFF),
     tertiaryContainer = Amber50,
     onTertiaryContainer = Color(0xFF422006),
-    error = Rose600,
+    error = Rose700,
     onError = Color(0xFFFFFFFF),
     errorContainer = Rose50,
     onErrorContainer = Color(0xFF4C0519),
@@ -274,15 +292,35 @@ private val LightColors = lightColorScheme(
  */
 val GuardiaHeroGradient = Brush.linearGradient(listOf(SignalCyan, DeepAqua, DeepOcean))
 
+/**
+ * The same palette with every surface boundary raised to 3:1 (WCAG 1.4.11).
+ *
+ * Only the edges change. Text colours already clear AA in both themes, and repainting the fills
+ * would turn a preference into a different app — the point is to make the *structure* of a screen
+ * visible to someone who cannot resolve a hairline, not to flatten the design.
+ */
+private fun GuardiaColors.withStrongEdges(): GuardiaColors = copy(
+    border = if (isDark) DarkBorderHC else LightBorderHC,
+    borderHighlight = if (isDark) DarkBorderHighlightHC else LightBorderHighlight,
+    input = if (isDark) DarkBorderHC else LightBorderHC,
+)
+
 @Composable
 fun GuardiaTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
+    highContrast: Boolean = false,
     content: @Composable () -> Unit,
 ) {
-    val guardiaColors = if (darkTheme) DarkGuardiaColors else LightGuardiaColors
+    val base = if (darkTheme) DarkGuardiaColors else LightGuardiaColors
+    val guardiaColors = if (highContrast) base.withStrongEdges() else base
+    val material = if (darkTheme) DarkColors else LightColors
     CompositionLocalProvider(LocalGuardiaColors provides guardiaColors) {
         MaterialTheme(
-            colorScheme = if (darkTheme) DarkColors else LightColors,
+            colorScheme = if (highContrast) {
+                material.copy(outline = guardiaColors.border, outlineVariant = guardiaColors.border)
+            } else {
+                material
+            },
             typography = GuardiaTypography,
             shapes = GuardiaShapes,
             content = content,

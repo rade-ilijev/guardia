@@ -28,9 +28,12 @@ class AppearanceState @Inject constructor(private val prefs: AppPreferences) : V
         .stateIn(viewModelScope, SharingStarted.Eagerly, AppPreferences.THEME_SYSTEM)
     val animationsMode: StateFlow<Int> = prefs.animationsMode
         .stateIn(viewModelScope, SharingStarted.Eagerly, AppPreferences.MOTION_SYSTEM)
+    val highContrast: StateFlow<Boolean> = prefs.highContrast
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     fun setThemeMode(value: Int) { viewModelScope.launch { prefs.setThemeMode(value) } }
     fun setAnimationsMode(value: Int) { viewModelScope.launch { prefs.setAnimationsMode(value) } }
+    fun setHighContrast(value: Boolean) { viewModelScope.launch { prefs.setHighContrast(value) } }
 }
 
 /**
@@ -49,6 +52,7 @@ fun GuardiaAppTheme(content: @Composable () -> Unit) {
     val state: AppearanceState = hiltViewModel()
     val themeMode by state.themeMode.collectAsStateWithLifecycle()
     val animationsMode by state.animationsMode.collectAsStateWithLifecycle()
+    val highContrast by state.highContrast.collectAsStateWithLifecycle()
 
     val dark = when (themeMode) {
         AppPreferences.THEME_DARK -> true
@@ -61,7 +65,7 @@ fun GuardiaAppTheme(content: @Composable () -> Unit) {
         AppPreferences.MOTION_OFF -> false
         else -> null
     }
-    GuardiaTheme(darkTheme = dark) {
+    GuardiaTheme(darkTheme = dark, highContrast = highContrast) {
         CompositionLocalProvider(LocalMotionOverride provides motion) { content() }
     }
 }

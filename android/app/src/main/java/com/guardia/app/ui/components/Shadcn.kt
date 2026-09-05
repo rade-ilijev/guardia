@@ -70,6 +70,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -126,7 +129,7 @@ private fun buttonStyleFor(variant: ButtonVariant): ButtonStyle {
         // to press, and giving it the brand ramp plus a halo is what separates it from "a button".
         ButtonVariant.Default -> ButtonStyle(
             container = c.brand,
-            brush = Brush.horizontalGradient(c.gradientBrand),
+            brush = Brush.horizontalGradient(c.gradientBrandAction),
             content = c.brandForeground,
             border = null,
             pressedOverlay = scrim,
@@ -137,7 +140,7 @@ private fun buttonStyleFor(variant: ButtonVariant): ButtonStyle {
         ButtonVariant.Ghost -> ButtonStyle(Color.Transparent, null, c.foreground, null, c.accent, null)
         ButtonVariant.Destructive -> ButtonStyle(
             container = c.destructive,
-            brush = Brush.horizontalGradient(c.gradientDanger),
+            brush = Brush.horizontalGradient(c.gradientDangerAction),
             content = Color.White,
             border = null,
             pressedOverlay = scrim,
@@ -1013,14 +1016,18 @@ fun ShSectionLabel(
     val c = Guardia.colors
     val tick = remember(c.gradientBrand) { Brush.verticalGradient(c.gradientBrand) }
     Row(
-        modifier = modifier.fillMaxWidth().padding(bottom = Spacing.sm),
+        // A section label is a heading, and saying so is what lets a screen-reader user jump
+        // between sections instead of swiping through every row of a long settings page.
+        modifier = modifier.fillMaxWidth().padding(bottom = Spacing.sm).semantics { heading() },
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
+            // The brand tick is decoration; it must not become a stop of its own in the tree.
             Modifier
                 .size(width = 3.dp, height = 14.dp)
                 .clip(RoundedCornerShape(2.dp))
-                .background(tick),
+                .background(tick)
+                .clearAndSetSemantics { },
         )
         Spacer(Modifier.width(Spacing.sm))
         Text(

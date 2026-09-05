@@ -1492,6 +1492,7 @@ private fun VoiceSection(viewModel: SettingsViewModel) {
 private fun AppearanceSection(viewModel: com.guardia.app.ui.theme.AppearanceState = hiltViewModel()) {
     val theme by viewModel.themeMode.collectAsStateWithLifecycle()
     val motion by viewModel.animationsMode.collectAsStateWithLifecycle()
+    val highContrast by viewModel.highContrast.collectAsStateWithLifecycle()
 
     SettingsGroup(
         title = "Theme",
@@ -1534,6 +1535,18 @@ private fun AppearanceSection(viewModel: com.guardia.app.ui.theme.AppearanceStat
             )
             if (index < options.lastIndex) RowDivider()
         }
+    }
+
+    SettingsGroup(
+        title = "Accessibility",
+        subtitle = "Guardia separates its surfaces with a hairline, which is quiet but faint. This draws every card, field and divider at an edge that stays visible.",
+    ) {
+        SwitchRow(
+            title = "High contrast borders",
+            subtitle = "Stronger edges on cards, inputs and dividers. Colours and text are unchanged.",
+            checked = highContrast,
+            onCheckedChange = viewModel::setHighContrast,
+        )
     }
 }
 

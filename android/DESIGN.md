@@ -24,11 +24,11 @@ mode that is the difference between "an app with a neon accent" and "an instrume
 
 | Token | Light | Dark | Meaning |
 |---|---|---|---|
-| `brand` | `#0D9488` | `#2CF5D8` | Signal Cyan. The system is watching, or this is the thing to press |
+| `brand` | `#0F766E` | `#2CF5D8` | Signal Cyan. The system is watching, or this is the thing to press |
 | `background` | `#F6FAFA` | `#050B0D` | Page canvas |
 | `card` / `cardTop` / `cardBottom` | white → `#FAFDFD` | `#131E21` → `#0A1214` | A card is a two-stop fill, lighter at the top |
 | `borderHighlight` | white | 12% white | The lit top edge that makes a card read as glass |
-| `muted` / `mutedForeground` | `#EFF4F4` / `#627373` | `#162124` / `#8FA3A5` | Secondary fills and secondary text |
+| `muted` / `mutedForeground` | `#EFF4F4` / `#5A6A6A` | `#162124` / `#8FA3A5` | Secondary fills and secondary text |
 | `success` | emerald | emerald | Granted, verified, trusted, low risk |
 | `warning` | amber | amber | Paused, guest, medium risk |
 | `destructive` | rose | rose | Intruder, blocked, missing permission |
@@ -38,6 +38,14 @@ mode that is the difference between "an app with a neon accent" and "an instrume
 The expressive tokens — `gradientBrand`, `gradientDanger`, `gradientCard`, `aurora`, `brandGlow` —
 are exposed as colour *stops* rather than `Brush`es, so a caller can build a linear, radial or sweep
 gradient from the same ramp without the theme deciding the geometry.
+
+**Light mode runs one step darker than Tailwind's defaults.** The 600 steps are what shadcn reaches
+for on white, and on this page they measured 3.0–4.5:1 — under what 1.4.3 asks of 14sp text. The
+700s keep the hue and clear it. Same reasoning for `gradientBrandAction` and `gradientDangerAction`:
+`gradientBrand` is picked for how it looks and its bright end put a white button label at **1.86:1**,
+so anything with text on it uses the trimmed ramp and decoration keeps the full one.
+`ContrastTest` holds every one of these ratios, because a colour chosen against a mock drifts and a
+colour chosen against a number does not.
 
 Read everything through `Guardia.colors` (`ui/theme/Theme.kt`), which also maps the Material 3 roles
 so stock Material widgets land on the right colours.
@@ -116,6 +124,26 @@ are reserved for avatars, status dots, progress tracks and the PIN keypad.
 - `ui/components/Disclosures.kt` — `rememberAccessibilityOptIn()`, the prominent disclosure Play
   requires before the accessibility service is enabled. Every entry point in the app routes through
   it, so the consent cannot be bypassed by taking a different path through the UI.
+
+## Accessibility
+
+The design leans on things a screen reader cannot see — a hairline seam, a gauge that pulses, a
+tinted icon — so each one has a spoken equivalent rather than an apology.
+
+- **A row is one node.** Settings rows hand their interaction to `toggleable` / `selectable` with a
+  `Role`, so TalkBack says "Auto-lock, on, switch" instead of reading a label and then an unlabelled
+  toggle. The trailing `ShSwitch` keeps a null callback: it is the *picture* of the state, not a
+  second control. Rows are `heightIn(min = 48.dp)` and carry the platform ripple; a title-only row
+  used to be 44dp with no press feedback at all.
+- **Guard state is a live region.** The dashboard's state word is `LiveRegionMode.Polite`, so the
+  guard stopping is announced rather than merely drawn. `StatusOrb` is `clearAndSetSemantics { }` —
+  it says the same thing in a picture, and announcing it twice is worse than not at all.
+- **Section labels are headings**, so a screen reader can jump between them instead of swiping
+  through every row of a long settings page.
+- **High contrast is a setting, not a default.** The hairline border is 1.2:1 — a seam, deliberately,
+  which is what keeps twelve cards from reading as a grid of boxes, and well under the 3:1 of 1.4.11.
+  Settings › Appearance › Accessibility swaps in `LightBorderHC` / `DarkBorderHC`. Only edges change:
+  the fills stay, because a preference should not turn Guardia into a different app.
 
 ## Colour-coding
 

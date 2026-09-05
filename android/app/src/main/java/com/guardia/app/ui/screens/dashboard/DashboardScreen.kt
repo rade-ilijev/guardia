@@ -70,6 +70,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -519,7 +522,15 @@ private fun HeroStatus(
                 StatusOrb(active = protectedNow, icon = heroIcon, accent = animColor, size = orbSize)
             }
             Spacer(Modifier.width(Spacing.lg))
-            Column(Modifier.weight(1f)) {
+            Column(
+                // Guard state is the one thing in the app worth interrupting for: a user who
+                // cannot see the gauge stop still needs to hear that it stopped. Polite, so it
+                // waits for the current utterance rather than talking over it. The label and its
+                // explanatory line are merged so the announcement is a sentence, not two.
+                modifier = Modifier
+                    .weight(1f)
+                    .semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
+            ) {
                 Text(
                     label,
                     style = MaterialTheme.typography.headlineMedium,

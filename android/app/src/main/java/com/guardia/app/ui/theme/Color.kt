@@ -47,6 +47,8 @@ val Neutral200 = Color(0xFFDFE7E7)
 val Neutral300 = Color(0xFFC3D0D0)
 val Neutral400 = Color(0xFF8A9C9C)
 val Neutral500 = Color(0xFF627373)
+/** Secondary text in light mode. 500 clears 4.5:1 on the page but only 4.48 on `muted`. */
+val Neutral550 = Color(0xFF5A6A6A)
 val Neutral600 = Color(0xFF465656)
 val Neutral700 = Color(0xFF2C3B3C)
 val Neutral800 = Color(0xFF1B2729)
@@ -63,18 +65,18 @@ val LightCardTop = Color(0xFFFFFFFF)         // top of the card's fill gradient
 val LightCardBottom = Color(0xFFFAFDFD)      // bottom — barely there, but it catches the light
 val LightCardForeground = Color(0xFF0A1214)
 val LightPopover = Color(0xFFFFFFFF)
-val LightPrimary = Cyan600
+val LightPrimary = Cyan700          // 600 put white button labels at 3.7:1
 val LightPrimaryForeground = Color(0xFFFFFFFF)
 val LightSecondary = Neutral100
 val LightSecondaryForeground = Neutral900
 val LightMuted = Neutral100
-val LightMutedForeground = Neutral500
+val LightMutedForeground = Neutral550
 val LightAccent = Cyan50
 val LightAccentForeground = Cyan700
 val LightBorder = Neutral200
 val LightBorderHighlight = Color(0xFFFFFFFF)
 val LightInput = Neutral200
-val LightRing = Cyan500
+val LightRing = Cyan600             // focus ring needs 3:1 against the page (1.4.11)
 
 // ---------------------------------------------------------------------------------------------
 // Dark theme — obsidian with a cool cast.
@@ -106,18 +108,22 @@ val Emerald300 = Color(0xFF6EE7B7)
 val Emerald400 = Color(0xFF34D399)
 val Emerald500 = Color(0xFF10B981)
 val Emerald600 = Color(0xFF059669)
+val Emerald700 = Color(0xFF047857)
 val Emerald50 = Color(0xFFECFDF5)
 
 val Amber300 = Color(0xFFFCD34D)
 val Amber400 = Color(0xFFFBBF24)
 val Amber500 = Color(0xFFF59E0B)
 val Amber600 = Color(0xFFD97706)
+val Amber700 = Color(0xFFB45309)
 val Amber50 = Color(0xFFFFFBEB)
 
 val Rose300 = Color(0xFFFDA4AF)
 val Rose400 = Color(0xFFFB7185)
 val Rose500 = Color(0xFFF43F5E)
 val Rose600 = Color(0xFFE11D48)
+val Rose700 = Color(0xFFBE123C)
+val Rose800 = Color(0xFF9F1239)
 val Rose50 = Color(0xFFFFF1F2)
 
 val Blue300 = Color(0xFF93C5FD)
@@ -136,3 +142,17 @@ val Violet600 = Color(0xFF7C3AED)
 // ---------------------------------------------------------------------------------------------
 val ChartDark = listOf(Cyan300, Violet400, Amber400, Rose400, Blue400)
 val ChartLight = listOf(Cyan600, Violet600, Amber600, Rose600, Blue600)
+
+// ---------------------------------------------------------------------------------------------
+// High contrast — opt-in, from Settings › Accessibility.
+//
+// The default border is a hairline by design (see DESIGN.md): it is a *seam* between surfaces,
+// not a drawn edge, which is what keeps a screen of twelve cards from reading as a grid of boxes.
+// That costs it contrast — 1.19:1 in light, 1.21:1 in dark — well under the 3:1 that WCAG 1.4.11
+// asks of a UI component boundary. Rather than make every screen heavier for everyone, the
+// stronger edge is a setting: these clear 3:1 against both the page and a card.
+// ---------------------------------------------------------------------------------------------
+val LightBorderHC = Color(0xFF7C8E8E)        // 3.27:1 on the page, 3.43:1 on a card
+val DarkBorderHC = Neutral500                // 3.98:1 on the page, 3.42:1 on a card
+/** In high contrast the lit top edge stops being a suggestion and becomes visible in its own right. */
+val DarkBorderHighlightHC = Color(0x66FFFFFF)

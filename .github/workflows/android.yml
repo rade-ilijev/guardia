@@ -39,9 +39,51 @@ jobs:
       - name: Lint
         run: ./gradlew :app:lintFullDebug --stacktrace
 
+      # Job logs and artifacts both need repository admin rights to read, even though this repo
+      # is public. The run summary does not, so the failures go there: whoever opens the red run
+      # sees what broke without downloading anything.
+      - name: Lint failures to job summary
+        if: failure()
+        run: |
+          python3 - <<'EOF' >> "$GITHUB_STEP_SUMMARY"
+          import glob, xml.etree.ElementTree as ET
+          reports = sorted(glob.glob("app/build/reports/lint-results-*.xml"))
+          if not reports:
+              print("No lint XML report was produced - the failure was before lint ran.")
+          for path in reports:
+              try:
+                  issues = ET.parse(path).getroot().findall("issue")
+              except Exception as exc:
+                  print(f"Could not parse {path}: {exc}")
+                  continue
+              errors = [i for i in issues if i.get("severity") == "Error"]
+              fatal = [i for i in issues if i.get("severity") == "Fatal"]
+              blocking = fatal + errors
+              print(f"## {path}")
+              print(f"{len(blocking)} blocking ({len(fatal)} fatal, {len(errors)} error), "
+                    f"{len(issues) - len(blocking)} non-blocking\n")
+              by_id = {}
+              for issue in blocking:
+                  by_id.setdefault(issue.get("id"), []).append(issue)
+              for issue_id, group in sorted(by_id.items(), key=lambda kv: -len(kv[1])):
+                  print(f"### `{issue_id}` x{len(group)}")
+                  print(f"> {group[0].get('message')}\n")
+                  for issue in group[:12]:
+                      loc = issue.find("location")
+                      where = "?"
+                      if loc is not None:
+                          where = loc.get("file", "?").replace("/home/runner/work/guardia/guardia/", "")
+                          if loc.get("line"):
+                              where += ":" + loc.get("line")
+                      print(f"- `{where}`")
+                  if len(group) > 12:
+                      print(f"- ...and {len(group) - 12} more")
+                  print()
+          EOF
+
       - name: Upload lint report
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: lint-report
-          path: android/app/build/reports/lint-results-*.html
+          path: android/app/build/reports/lint-results-*.*

@@ -126,6 +126,17 @@ class AppPreferences @Inject constructor(
      * for an edge someone with low vision can actually find.
      */
     val highContrast: Flow<Boolean> = ds.data.map { it[KEY_HIGH_CONTRAST] ?: false }.distinctUntilChanged()
+
+    /**
+     * Whether the main UI may be screenshotted and screen-recorded.
+     *
+     * Off by default, and deliberately not remembered as "on" being harmless: with it on, anything
+     * else that can capture the screen can also capture Guardia's intruder photos. It exists
+     * because the user sometimes needs a picture of their own screen and no app should make that
+     * impossible without saying so. The PIN gates are never covered by it.
+     */
+    val allowScreenCapture: Flow<Boolean> =
+        ds.data.map { it[KEY_ALLOW_SCREEN_CAPTURE] ?: false }.distinctUntilChanged()
     /** Whether the lock screen offers fingerprint / face unlock as an alternative to the real PIN. */
     val decoyPinSet: Flow<Boolean> = ds.data.map { it[KEY_PIN_DECOY] != null }.distinctUntilChanged()
     /** Whether a recovery code exists — the only way back in if the real PIN is forgotten. */
@@ -254,6 +265,7 @@ class AppPreferences @Inject constructor(
     suspend fun setThemeMode(value: Int) = ds.edit { it[KEY_THEME_MODE] = value.coerceIn(0, 2) }
     suspend fun setAnimationsMode(value: Int) = ds.edit { it[KEY_ANIMATIONS_MODE] = value.coerceIn(0, 2) }
     suspend fun setHighContrast(value: Boolean) = ds.edit { it[KEY_HIGH_CONTRAST] = value }
+    suspend fun setAllowScreenCapture(value: Boolean) = ds.edit { it[KEY_ALLOW_SCREEN_CAPTURE] = value }
     suspend fun setGuardingEnabled(value: Boolean) = ds.edit { it[KEY_GUARDING_ENABLED] = value }
     suspend fun setResponsiveness(level: Int) = ds.edit { it[KEY_RESPONSIVENESS] = level }
     suspend fun setIntervalCheckEnabled(value: Boolean) = ds.edit { it[KEY_INTERVAL_ENABLED] = value }
@@ -503,6 +515,7 @@ class AppPreferences @Inject constructor(
         private val KEY_THEME_MODE = intPreferencesKey("theme_mode")
         private val KEY_ANIMATIONS_MODE = intPreferencesKey("animations_mode")
         private val KEY_HIGH_CONTRAST = booleanPreferencesKey("high_contrast")
+        private val KEY_ALLOW_SCREEN_CAPTURE = booleanPreferencesKey("allow_screen_capture")
         private val KEY_GUARDING_ENABLED = booleanPreferencesKey("guarding_enabled")
         private val KEY_RESPONSIVENESS = intPreferencesKey("responsiveness")
         private val KEY_INTERVAL_ENABLED = booleanPreferencesKey("interval_check_enabled")

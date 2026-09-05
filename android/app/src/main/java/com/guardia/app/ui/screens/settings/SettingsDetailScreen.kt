@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Screenshot
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Mic
@@ -1163,6 +1164,29 @@ private fun PrivacySection(viewModel: SettingsViewModel) {
     )
 
     PermissionsControlPanel()
+
+    // Guardia sets FLAG_SECURE on its own window, which is why the phone refuses to screenshot it.
+    // That is right by default — intruder photos are on these screens — but it also means a user
+    // cannot capture their own screen for a support ticket, a bug report or a store listing, and
+    // an app that makes that impossible without ever saying so is just confusing.
+    val allowCapture by viewModel.allowScreenCapture.collectAsStateWithLifecycle()
+    SettingsGroup(
+        title = "Screenshots",
+        subtitle = "Guardia blocks screenshots and screen recording of its own screens. The PIN " +
+            "prompts that appear over other apps stay blocked either way.",
+    ) {
+        SwitchRow(
+            title = "Allow screenshots and recording",
+            subtitle = if (allowCapture) {
+                "On — anything that can record your screen can also capture intruder photos here."
+            } else {
+                "Off — the phone will refuse to capture Guardia."
+            },
+            checked = allowCapture,
+            onCheckedChange = viewModel::setAllowScreenCapture,
+            leading = Icons.Filled.Screenshot,
+        )
+    }
 
     BackupRestore()
     SettingsGroup(title = "Storage") {

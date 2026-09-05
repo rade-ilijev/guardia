@@ -82,6 +82,10 @@ class SettingsViewModel @Inject constructor(
     fun currentSsid(): String? = com.guardia.app.core.system.WifiTrust.currentSsid(context)
 
     fun setCrashLogEnabled(value: Boolean) = viewModelScope.launch { prefs.setCrashLogEnabled(value) }
+
+    val allowScreenCapture: StateFlow<Boolean> = prefs.allowScreenCapture
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+    fun setAllowScreenCapture(value: Boolean) = viewModelScope.launch { prefs.setAllowScreenCapture(value) }
     fun readCrashLog(): String = com.guardia.app.core.system.CrashLogger.read(context)
     fun clearCrashLog() = com.guardia.app.core.system.CrashLogger.clear(context)
 

@@ -142,12 +142,30 @@ fun DashboardScreen(
     val relaxedOnWifi by viewModel.relaxedOnWifi.collectAsStateWithLifecycle()
     val integrityWarning by viewModel.integrityWarning.collectAsStateWithLifecycle()
     val needsRecoveryCode by viewModel.needsRecoveryCode.collectAsStateWithLifecycle()
+    val accessibilityRevoked by viewModel.accessibilityRevoked.collectAsStateWithLifecycle()
 
-    val protectedNow = state == GuardState.PROTECTED
+    // NEEDS_ATTENTION is a *running* guard with something missing, so the hero still reads as on
+    // and the button still offers to stop it. What changes is the label and colour, which
+    // heroCopy/heroIcon already handle, plus the alert below.
+    val protectedNow = state == GuardState.PROTECTED || state == GuardState.NEEDS_ATTENTION
     val haptics = LocalHapticFeedback.current
     val context = LocalContext.current
     val c = Guardia.colors
     var showDisclosure by remember { mutableStateOf(false) }
+    // Play's AccessibilityService policy requires the prominent disclosure before the user is sent
+    // to enable the service, whichever route they took to get here.
+    val openAccessibility = rememberAccessibilityOptIn()
+
+    // The grant is changed in Android's settings, not here, and an app update can revoke it while
+    // Guardia is closed. There is nothing to observe, so re-read it on every resume.
+    val dashboardLifecycle = LocalLifecycleOwner.current
+    DisposableEffect(dashboardLifecycle) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) viewModel.onResumed()
+        }
+        dashboardLifecycle.lifecycle.addObserver(observer)
+        onDispose { dashboardLifecycle.lifecycle.removeObserver(observer) }
+    }
 
     if (showDisclosure) {
         BackgroundCameraDisclosureDialog(
@@ -256,6 +274,25 @@ fun DashboardScreen(
                     )
                 }
             }
+
+        // App Lock switched on in Guardia and switched off by Android is the worst state the app
+        // can be in: it looks protected and isn't. It outranks everything else on this screen.
+        if (accessibilityRevoked) {
+            item(key = "accessibility") {
+                ShAlert(
+                    title = "App Lock isn't running",
+                    description = "Android turned off Guardia's app-detection permission — updating " +
+                        "the app does this. Locked apps will open without asking until you turn it " +
+                        "back on.",
+                    modifier = Modifier.animateEntrance(1, arriving()),
+                    variant = AlertVariant.Destructive,
+                    icon = Icons.Filled.GppBad,
+                    action = {
+                        ShButton(text = "Turn it on", onClick = openAccessibility, size = ButtonSize.Sm)
+                    },
+                )
+            }
+        }
 
         // One forgotten PIN away from a reinstall. Worth interrupting for, once.
         if (needsRecoveryCode) {
@@ -846,13 +883,8 @@ private fun SetupChecklistCard(
 
 private data class SetupStep(val label: String, val complete: Boolean, val action: () -> Unit)
 
-private fun isAccessibilityEnabled(context: Context): Boolean {
-    val flat = android.provider.Settings.Secure.getString(
-        context.contentResolver,
-        android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
-    ).orEmpty()
-    return flat.contains("${context.packageName}/")
-}
+private fun isAccessibilityEnabled(context: Context): Boolean =
+    com.guardia.app.core.system.AccessibilityAccess.isEnabled(context)
 
 /** Blocking prerequisite — a destructive alert with its own action, not a red card. */
 @Composable

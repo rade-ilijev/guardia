@@ -339,7 +339,26 @@ class GuardService : LifecycleService() {
         // runs on the weak pixel-descriptor fallback and the owner needs to know.
         if (!faceEmbedder.usingModel) notifyDegradedRecognition()
         GuardController.onServiceState(GuardState.PROTECTED)
+        // Same principle, one layer up: App Lock and per-app checks need Android's accessibility
+        // grant, and an app update revokes it. Settling the state here means a guard started from
+        // the tile, the widget or a reboot reports the truth without waiting for the dashboard.
+        checkAccessibilityPrerequisite()
         return START_STICKY
+    }
+
+    /**
+     * Moves the guard to [GuardState.NEEDS_ATTENTION] and warns if the features that need the
+     * accessibility service are configured but the grant is gone. Cheap enough to run on every
+     * start; the state only changes when the answer does.
+     */
+    private fun checkAccessibilityPrerequisite() {
+        lifecycleScope.launch {
+            val depends = prefs.lockedApps.first().isNotEmpty() || prefs.triggerApps.first().isNotEmpty()
+            GuardController.refreshPrerequisites(this@GuardService, depends)
+            if (depends && !com.guardia.app.core.system.AccessibilityAccess.isEnabled(this@GuardService)) {
+                com.guardia.app.core.system.ProtectionWarning.showAccessibilityRevoked(this@GuardService)
+            }
+        }
     }
 
     override fun onDestroy() {

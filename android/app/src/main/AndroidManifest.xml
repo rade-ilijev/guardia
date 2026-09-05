@@ -160,6 +160,15 @@
             </intent-filter>
         </receiver>
 
+        <!-- Notices when an update has cost the user their accessibility grant -->
+        <receiver
+            android:name=".core.system.AppUpdatedReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
         <!-- Re-arm guarding after reboot -->
         <receiver
             android:name=".core.system.BootReceiver"

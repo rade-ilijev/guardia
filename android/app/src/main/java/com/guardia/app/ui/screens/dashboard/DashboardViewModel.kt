@@ -7,6 +7,7 @@ import com.guardia.app.core.guard.GuardActivity
 import com.guardia.app.core.guard.GuardActivityTracker
 import com.guardia.app.core.guard.GuardController
 import com.guardia.app.core.guard.GuardState
+import com.guardia.app.core.system.AccessibilityAccess
 import com.guardia.app.data.AppPreferences
 import com.guardia.app.data.EventsRepository
 import com.guardia.app.data.PeopleRepository
@@ -57,6 +58,37 @@ class DashboardViewModel @Inject constructor(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     val guardState: StateFlow<GuardState> = GuardController.state
+
+    /**
+     * True when App Lock or per-app checks are configured but Android's accessibility grant is
+     * gone — the state an app update leaves behind, in which those features are switched on in
+     * Guardia's own settings and doing nothing at all.
+     *
+     * Recomputed by [onResumed] rather than observed, because the setting lives in Settings.Secure
+     * and the user changes it in another app; there is nothing here to collect from.
+     */
+    val accessibilityRevoked: StateFlow<Boolean> = kotlinx.coroutines.flow.combine(
+        AccessibilityAccess.enabled,
+        prefs.lockedApps,
+        prefs.triggerApps,
+    ) { enabled, locked, triggers ->
+        (locked.isNotEmpty() || triggers.isNotEmpty()) && !enabled
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    /**
+     * Re-reads the accessibility grant. Called every time the dashboard resumes, which covers the
+     * two ways it changes: the user just came back from Android's accessibility settings, or an
+     * update revoked it while the app was closed.
+     */
+    fun onResumed() {
+        viewModelScope.launch {
+            val depends = prefs.lockedApps.first().isNotEmpty() || prefs.triggerApps.first().isNotEmpty()
+            GuardController.refreshPrerequisites(appContext, depends)
+            if (!AccessibilityAccess.refresh(appContext)) return@launch
+            // Grant is back: retract the warning notification the update raised.
+            com.guardia.app.core.system.ProtectionWarning.clear(appContext)
+        }
+    }
 
     /** True while checks are paused because the phone is on a trusted Wi-Fi network. */
     val relaxedOnWifi: StateFlow<Boolean> = GuardController.relaxedOnTrustedWifi

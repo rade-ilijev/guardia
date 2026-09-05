@@ -46,6 +46,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -206,6 +207,11 @@ fun ShButton(
 
     Row(
         modifier = modifier
+            // The drawn button keeps its shadcn height (34/40/46dp); this only widens the area that
+            // accepts the tap, to the 48dp WCAG 2.5.5 and Android both ask for. Material's own
+            // Button does exactly this — replacing it with a custom Row is what lost it, and an
+            // icon button at 40dp is the one most likely to be missed.
+            .minimumInteractiveComponentSize()
             .graphicsLayer { scaleX = scale; scaleY = scale }
             .then(if (size == ButtonSize.Icon) Modifier.size(size.height()) else Modifier.height(size.height()))
             .then(

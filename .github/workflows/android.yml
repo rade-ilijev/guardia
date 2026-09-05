@@ -42,43 +42,68 @@ jobs:
       # Job logs and artifacts both need repository admin rights to read, even though this repo
       # is public. The run summary does not, so the failures go there: whoever opens the red run
       # sees what broke without downloading anything.
-      - name: Lint failures to job summary
+      # Job logs and artifacts both need repository admin rights to read, even though this repo
+      # is public. Annotations and the run summary do not, so the failures go to both: whoever
+      # opens the red run sees what broke without downloading anything or being an admin.
+      - name: Report lint failures
         if: failure()
         run: |
-          python3 - <<'EOF' >> "$GITHUB_STEP_SUMMARY"
-          import glob, xml.etree.ElementTree as ET
+          python3 - <<'EOF'
+          import glob, os, xml.etree.ElementTree as ET
+
+          summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+          out = open(summary_path, "a", encoding="utf-8") if summary_path else None
+
+          def say(line=""):
+              if out:
+                  out.write(line + "\n")
+
+          def annotate(text, file=None, line=None):
+              # A workflow command on stdout becomes an annotation on the run page.
+              where = ""
+              if file:
+                  where = " file=" + file + (",line=" + line if line else "")
+              print("::error" + where + "::" + text.replace("\n", " "))
+
           reports = sorted(glob.glob("app/build/reports/lint-results-*.xml"))
+          say("## Lint")
           if not reports:
-              print("No lint XML report was produced - the failure was before lint ran.")
+              say("No lint XML report under app/build/reports (cwd " + os.getcwd() + ").")
+              annotate("Lint failed but produced no XML report to parse.")
           for path in reports:
               try:
                   issues = ET.parse(path).getroot().findall("issue")
               except Exception as exc:
-                  print(f"Could not parse {path}: {exc}")
+                  say("Could not parse " + path + ": " + str(exc))
                   continue
-              errors = [i for i in issues if i.get("severity") == "Error"]
-              fatal = [i for i in issues if i.get("severity") == "Fatal"]
-              blocking = fatal + errors
-              print(f"## {path}")
-              print(f"{len(blocking)} blocking ({len(fatal)} fatal, {len(errors)} error), "
-                    f"{len(issues) - len(blocking)} non-blocking\n")
+              blocking = [i for i in issues if i.get("severity") in ("Error", "Fatal")]
+              say("`" + path + "` - " + str(len(blocking)) + " blocking, "
+                  + str(len(issues) - len(blocking)) + " non-blocking")
+              say()
               by_id = {}
               for issue in blocking:
                   by_id.setdefault(issue.get("id"), []).append(issue)
               for issue_id, group in sorted(by_id.items(), key=lambda kv: -len(kv[1])):
-                  print(f"### `{issue_id}` x{len(group)}")
-                  print(f"> {group[0].get('message')}\n")
+                  loc = group[0].find("location")
+                  f = loc.get("file") if loc is not None else None
+                  ln = loc.get("line") if loc is not None else None
+                  annotate("lint " + issue_id + " x" + str(len(group)) + ": " + (group[0].get("message") or ""), f, ln)
+                  say("### `" + issue_id + "` x" + str(len(group)))
+                  say("> " + (group[0].get("message") or ""))
+                  say()
                   for issue in group[:12]:
-                      loc = issue.find("location")
+                      l = issue.find("location")
                       where = "?"
-                      if loc is not None:
-                          where = loc.get("file", "?").replace("/home/runner/work/guardia/guardia/", "")
-                          if loc.get("line"):
-                              where += ":" + loc.get("line")
-                      print(f"- `{where}`")
+                      if l is not None:
+                          where = (l.get("file") or "?").split("guardia/guardia/")[-1]
+                          if l.get("line"):
+                              where += ":" + l.get("line")
+                      say("- `" + where + "`")
                   if len(group) > 12:
-                      print(f"- ...and {len(group) - 12} more")
-                  print()
+                      say("- ...and " + str(len(group) - 12) + " more")
+                  say()
+          if out:
+              out.close()
           EOF
 
       - name: Upload lint report

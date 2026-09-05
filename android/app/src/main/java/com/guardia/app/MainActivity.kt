@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import com.guardia.app.core.system.CaptureFlag
 import com.guardia.app.ui.GuardiaRoot
 import dagger.hilt.android.AndroidEntryPoint
 import androidx.activity.viewModels
@@ -23,6 +24,9 @@ class MainActivity : ComponentActivity() {
 
     @javax.inject.Inject lateinit var prefs: com.guardia.app.data.AppPreferences
 
+    /** What the current window was actually built with, so a no-op change never recreates. */
+    private var appliedCaptureAllowed: Boolean? = null
+
     override fun onStart() {
         super.onStart()
         appViewModel.onAppStarted()
@@ -35,15 +39,26 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Secure first, relax second. The window is marked before anything is drawn, so a launch
-        // never shows a capturable frame while the preference is still being read off disk; if the
-        // user has allowed capture, the flag is cleared a moment later. Doing it the other way
-        // round would leak exactly one screenshot's worth of whatever was on screen at start.
-        com.guardia.app.core.system.markSecure(this)
+        // Decided before the window exists, from the synchronous mirror of the preference.
+        // Clearing FLAG_SECURE on a window that has already been created is honoured
+        // inconsistently across OEM builds, so the flag is only ever *set at creation*: flip the
+        // switch and the activity is recreated below rather than patched in place.
+        val captureAllowed = CaptureFlag.isAllowed(this)
+        appliedCaptureAllowed = captureAllowed
+        com.guardia.app.core.system.setSecure(this, !captureAllowed)
+
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 prefs.allowScreenCapture.collect { allowed ->
-                    com.guardia.app.core.system.setSecure(this@MainActivity, !allowed)
+                    // DataStore stays the source of truth; this keeps the synchronous copy that
+                    // the next onCreate reads honest.
+                    CaptureFlag.setAllowed(this@MainActivity, allowed)
+                    if (allowed != appliedCaptureAllowed) {
+                        appliedCaptureAllowed = allowed
+                        // Rebuild the window with the right flag. Cheap, and the only way the
+                        // change is guaranteed to take on every device.
+                        recreate()
+                    }
                 }
             }
         }

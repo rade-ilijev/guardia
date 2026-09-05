@@ -1,6 +1,7 @@
 package com.guardia.app.core.system
 
 import android.app.Activity
+import android.content.Context
 import android.view.WindowManager
 
 /**
@@ -20,8 +21,6 @@ fun markSecure(activity: Activity) = setSecure(activity, true)
  * that appear *over other apps* — the PIN gates and the per-app face check — never call this and
  * stay secure whatever the setting says. Those are the ones a hostile screen recorder would be
  * waiting for, and their content is a PIN being typed.
- *
- * The flag can be flipped on a live window; the change applies from the next frame.
  */
 fun setSecure(activity: Activity, secure: Boolean) {
     if (secure) {
@@ -29,4 +28,37 @@ fun setSecure(activity: Activity, secure: Boolean) {
     } else {
         activity.window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
     }
+}
+
+/**
+ * A synchronous mirror of the "allow screen capture" preference.
+ *
+ * The preference itself lives in DataStore, which can only be read from a coroutine. That is a
+ * problem here and nowhere else, because FLAG_SECURE has to be decided *before* the window is
+ * created: setting it afterwards works on paper, but clearing it on a window that already exists
+ * is honoured inconsistently across OEM builds, and on the ones that ignore it the user flips the
+ * switch and nothing happens. Deciding at creation time is the only version that behaves the same
+ * everywhere.
+ *
+ * So the value is mirrored into SharedPreferences, which reads synchronously. DataStore stays the
+ * source of truth — this is a cache written whenever the real value is observed, never the thing
+ * the settings screen edits.
+ */
+object CaptureFlag {
+
+    // Same default as the DataStore value it mirrors: allowed on debug, blocked on release.
+    // Without this the first launch after install would still come up secure, and the user would
+    // have to background the app once before it took effect.
+    fun isAllowed(context: Context): Boolean =
+        prefs(context).getBoolean(KEY, com.guardia.app.BuildConfig.DEBUG)
+
+    fun setAllowed(context: Context, allowed: Boolean) {
+        prefs(context).edit().putBoolean(KEY, allowed).apply()
+    }
+
+    private fun prefs(context: Context) =
+        context.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE)
+
+    private const val FILE = "guardia_window_flags"
+    private const val KEY = "allow_screen_capture"
 }

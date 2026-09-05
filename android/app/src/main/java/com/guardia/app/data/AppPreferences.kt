@@ -130,13 +130,18 @@ class AppPreferences @Inject constructor(
     /**
      * Whether the main UI may be screenshotted and screen-recorded.
      *
-     * Off by default, and deliberately not remembered as "on" being harmless: with it on, anything
-     * else that can capture the screen can also capture Guardia's intruder photos. It exists
-     * because the user sometimes needs a picture of their own screen and no app should make that
-     * impossible without saying so. The PIN gates are never covered by it.
+     * Defaults to *allowed* on a debug build and *blocked* on release. FLAG_SECURE protects real
+     * users from a screen-capturing app lifting their intruder photos; it protects nobody on a
+     * developer's own handset, where it only means the person building the thing cannot take a
+     * picture of it for a bug report or a store listing. Making the two builds differ is the
+     * difference between a security control and an obstacle.
+     *
+     * Release still ships secure, and the Privacy toggle still turns it off for anyone who needs
+     * to capture their own screen. The PIN gates are never covered by either.
      */
     val allowScreenCapture: Flow<Boolean> =
-        ds.data.map { it[KEY_ALLOW_SCREEN_CAPTURE] ?: false }.distinctUntilChanged()
+        ds.data.map { it[KEY_ALLOW_SCREEN_CAPTURE] ?: com.guardia.app.BuildConfig.DEBUG }
+            .distinctUntilChanged()
     /** Whether the lock screen offers fingerprint / face unlock as an alternative to the real PIN. */
     val decoyPinSet: Flow<Boolean> = ds.data.map { it[KEY_PIN_DECOY] != null }.distinctUntilChanged()
     /** Whether a recovery code exists — the only way back in if the real PIN is forgotten. */

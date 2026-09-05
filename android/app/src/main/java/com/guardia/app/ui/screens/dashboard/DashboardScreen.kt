@@ -42,6 +42,7 @@ import androidx.compose.material.icons.filled.BatteryFull
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.GppBad
+import androidx.compose.material.icons.filled.GppMaybe
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PauseCircle
 import androidx.compose.material.icons.filled.People
@@ -71,6 +72,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -125,6 +127,7 @@ fun DashboardScreen(
     onOpenPeople: () -> Unit = {},
     onOpenActivity: () -> Unit = {},
     onOpenPins: () -> Unit = {},
+    onOpenSecurity: () -> Unit = {},
     viewModel: DashboardViewModel = hiltViewModel(),
 ) {
     val state by viewModel.guardState.collectAsStateWithLifecycle()
@@ -343,6 +346,15 @@ fun DashboardScreen(
             }
 
             item(key = "admin") { Box(Modifier.animateEntrance(4, arriving())) { DeviceAdminCard() } }
+
+            // Above recent activity on purpose: what is wrong with the device right now outranks
+            // what happened yesterday.
+            item(key = "security") {
+                SecurityPostureCard(
+                    onOpenSecurity = onOpenSecurity,
+                    modifier = Modifier.animateEntrance(4, arriving()),
+                )
+            }
 
             if (recentEvents.isNotEmpty()) {
                 item(key = "recent-label") {
@@ -770,6 +782,104 @@ private fun FalseLockCard(viewModel: DashboardViewModel, modifier: Modifier = Mo
                 ShButton("Cancel", onClick = { pickOwner = false }, variant = ButtonVariant.Ghost)
             },
         )
+    }
+}
+
+/**
+ * Device security posture, on the home page.
+ *
+ * The Security Center already computed all of this and then hid it three taps down, under Settings,
+ * where nobody looks until they already suspect something. A security app that knows the screen
+ * lock is off should say so on the screen the user actually opens.
+ *
+ * It is a summary, not a second Security Center: one number, the single most important thing still
+ * wrong, and a way through. The full list stays where it was. Deliberately not cyan — DESIGN.md
+ * reserves that for the guard being alive and for the primary action, and this is neither; it takes
+ * the colour of its own state, the same language the Security Center rows use.
+ */
+@Composable
+private fun SecurityPostureCard(
+    onOpenSecurity: () -> Unit,
+    modifier: Modifier = Modifier,
+    scanner: com.guardia.app.ui.screens.settings.ScannerViewModel = hiltViewModel(),
+) {
+    val c = Guardia.colors
+    // The checks read system settings the user can change while Guardia is backgrounded (screen
+    // lock, USB debugging, patch level), so a cached answer goes stale the moment they leave.
+    androidx.lifecycle.compose.LifecycleResumeEffect(Unit) {
+        scanner.scan()
+        onPauseOrDispose { }
+    }
+    val score by scanner.score.collectAsStateWithLifecycle()
+    val checks by scanner.checks.collectAsStateWithLifecycle()
+    if (checks.isEmpty()) return
+
+    val failed = checks.filter { !it.passed }
+    val critical = failed.count { it.severity == com.guardia.app.ui.screens.settings.Severity.CRITICAL }
+    val tone = when {
+        critical > 0 -> c.destructive
+        failed.isNotEmpty() -> c.warning
+        else -> c.success
+    }
+    // Worst-first, so the line under the score is the thing worth doing next rather than whichever
+    // check happened to be declared first.
+    val headline = when {
+        failed.isEmpty() -> "All ${checks.size} checks passing"
+        critical > 0 -> failed.first { it.severity == com.guardia.app.ui.screens.settings.Severity.CRITICAL }.title
+        else -> failed.first().title
+    }
+    val summary = if (failed.isEmpty()) {
+        "Device security $score out of 100. $headline."
+    } else {
+        "Device security $score out of 100. ${failed.size} of ${checks.size} checks failing. " +
+            "Most important: $headline."
+    }
+
+    ShCard(modifier = modifier.fillMaxWidth(), onClick = onOpenSecurity) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .padding(Spacing.card)
+                // One node: the parts are a sentence, not four things to swipe through.
+                .semantics(mergeDescendants = true) { contentDescription = summary },
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                ShIconBox(
+                    icon = if (failed.isEmpty()) Icons.Filled.VerifiedUser else Icons.Filled.GppMaybe,
+                    tint = tone,
+                    size = 34.dp,
+                )
+                Spacer(Modifier.width(Spacing.md))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        "Device security",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = c.foreground,
+                    )
+                    Text(
+                        if (failed.isEmpty()) headline else "$headline${if (failed.size > 1) " +${failed.size - 1} more" else ""}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (failed.isEmpty()) c.mutedForeground else tone,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Spacer(Modifier.width(Spacing.sm))
+                Text(
+                    "$score",
+                    style = com.guardia.app.ui.theme.DataDisplay,
+                    color = tone,
+                )
+                Icon(
+                    Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = c.mutedForeground,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+            Spacer(Modifier.height(Spacing.md))
+            ShProgress(progress = score / 100f, height = 6.dp, color = tone)
+        }
     }
 }
 

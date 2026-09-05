@@ -109,6 +109,7 @@ fun MainScreen(onLock: () -> Unit) {
                     onOpenPeople = { switchTab(BottomDestination.PEOPLE.route) },
                     onOpenActivity = { switchTab(BottomDestination.ACTIVITY.route) },
                     onOpenPins = { navController.navigate("${MainRoutes.SETTINGS_DETAIL}/pins") },
+                    onOpenSecurity = { navController.navigate(MainRoutes.SECURITY_CENTER) },
                 )
             }
             composable(BottomDestination.PEOPLE.route) {

@@ -1,6 +1,7 @@
 package com.guardia.app.core.system
 
 import android.app.PendingIntent
+import android.annotation.SuppressLint
 import android.content.Intent
 import android.os.Build
 import android.service.quicksettings.Tile
@@ -51,7 +52,11 @@ class GuardTileService : TileService() {
         updateTile()
     }
 
-    @Suppress("DEPRECATION") // Intent overload is the only option below API 34.
+    // The Intent overload is the only one that exists below API 34, and it is only reached there.
+    // @Suppress("DEPRECATION") covers the Kotlin warning; lint raises this under its own id, so it
+    // needs naming separately or the build fails on a branch that cannot be written another way.
+    @Suppress("DEPRECATION")
+    @SuppressLint("StartActivityAndCollapseDeprecated")
     private fun launchPinGate() {
         val intent = Intent(this, StopGuardActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)

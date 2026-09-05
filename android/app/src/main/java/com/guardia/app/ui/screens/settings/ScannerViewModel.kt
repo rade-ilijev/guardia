@@ -1,5 +1,6 @@
 package com.guardia.app.ui.screens.settings
 
+import android.annotation.SuppressLint
 import android.app.KeyguardManager
 import android.content.Context
 import android.content.pm.PackageManager
@@ -153,8 +154,22 @@ class ScannerViewModel @Inject constructor(
         return "Security patch is about $age days old (aim for under $MAX_PATCH_AGE_DAYS)."
     }
 
+    /**
+     * Whether the phone is on an open (unencrypted) Wi-Fi network.
+     *
+     * Guarded twice over. Reading the associated network needs the location grant on modern
+     * Android, so without it the answer would not be meaningful anyway and the check reports
+     * "not on an open network" rather than guessing; anything the platform still refuses is caught
+     * by runCatching. Lint cannot follow either guard through the lambda, hence the annotation.
+     */
     @Suppress("DEPRECATION")
+    @SuppressLint("MissingPermission")
     private fun onOpenWifi(): Boolean = runCatching {
+        if (context.checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            return@runCatching false
+        }
         // Reading the current network's security needs an active Wi-Fi connection; treat "unknown"
         // as safe so we never cry wolf. Open networks have no capabilities/empty security.
         val wifi = context.applicationContext.getSystemService(Context.WIFI_SERVICE)

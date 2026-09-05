@@ -29,8 +29,37 @@
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
 
+    <!--
+        Every one of these is declared required="false" on purpose. A permission implies its
+        hardware feature, and an implied feature is *required* by default — which quietly removes
+        the app from the Play listing for any device that lacks it. Guardia degrades instead: no
+        front camera means no face check, no microphone means no voice safeword, no GPS means no
+        safe zones, and the rest of the app still guards. Lint flags the omission as
+        PermissionImpliesUnsupportedChromeOsHardware, and it is right to.
+    -->
+    <uses-feature
+        android:name="android.hardware.camera"
+        android:required="false" />
     <uses-feature
         android:name="android.hardware.camera.front"
+        android:required="false" />
+    <uses-feature
+        android:name="android.hardware.camera.autofocus"
+        android:required="false" />
+    <uses-feature
+        android:name="android.hardware.microphone"
+        android:required="false" />
+    <uses-feature
+        android:name="android.hardware.location"
+        android:required="false" />
+    <uses-feature
+        android:name="android.hardware.location.gps"
+        android:required="false" />
+    <uses-feature
+        android:name="android.hardware.wifi"
+        android:required="false" />
+    <uses-feature
+        android:name="android.hardware.telephony"
         android:required="false" />
 
     <!-- See launchable apps so the App Lock picker can list them (Android 11+ visibility). -->

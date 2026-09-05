@@ -45,10 +45,12 @@ import androidx.compose.material.icons.filled.GppBad
 import androidx.compose.material.icons.filled.GppMaybe
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PauseCircle
+import androidx.compose.material.icons.filled.PrivacyTip
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
@@ -98,12 +100,16 @@ import com.guardia.app.ui.components.ShButton
 import com.guardia.app.ui.components.ShCard
 import com.guardia.app.ui.components.ShIconBox
 import com.guardia.app.ui.components.ShProgress
+import com.guardia.app.ui.components.ShSeparator
 import com.guardia.app.ui.components.ShSectionLabel
 import com.guardia.app.ui.components.ShStatCard
 import com.guardia.app.ui.components.ShSwitch
 import com.guardia.app.ui.components.StatusOrb
+import com.guardia.app.ui.screens.settings.SecurityCheck
+import com.guardia.app.ui.screens.settings.Severity
 import com.guardia.app.ui.theme.Guardia
 import com.guardia.app.ui.theme.MonoCaption
+import com.guardia.app.ui.theme.Radius
 import com.guardia.app.ui.theme.Spacing
 import com.guardia.app.ui.components.rememberAccessibilityOptIn
 import com.guardia.app.ui.components.GlassIconButton
@@ -349,10 +355,32 @@ fun DashboardScreen(
 
             // Above recent activity on purpose: what is wrong with the device right now outranks
             // what happened yesterday.
+            item(key = "security-label") {
+                Spacer(Modifier.height(Spacing.md))
+                ShSectionLabel(
+                    "Device security",
+                    Modifier.animateEntrance(4, arriving()),
+                    trailing = {
+                        ShButton(
+                            text = "Security Center",
+                            onClick = onOpenSecurity,
+                            variant = ButtonVariant.Ghost,
+                            size = ButtonSize.Sm,
+                            trailingIcon = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        )
+                    },
+                )
+            }
             item(key = "security") {
                 SecurityPostureCard(
                     onOpenSecurity = onOpenSecurity,
                     modifier = Modifier.animateEntrance(4, arriving()),
+                )
+            }
+            item(key = "security-facts") {
+                SecurityFactsRow(
+                    onOpenSecurity = onOpenSecurity,
+                    modifier = Modifier.animateEntrance(5, arriving()),
                 )
             }
 
@@ -786,16 +814,21 @@ private fun FalseLockCard(viewModel: DashboardViewModel, modifier: Modifier = Mo
 }
 
 /**
- * Device security posture, on the home page.
+ * Device security, on the home page.
  *
- * The Security Center already computed all of this and then hid it three taps down, under Settings,
+ * The Security Center already computed all of this and then hid it three taps down under Settings,
  * where nobody looks until they already suspect something. A security app that knows the screen
  * lock is off should say so on the screen the user actually opens.
  *
- * It is a summary, not a second Security Center: one number, the single most important thing still
- * wrong, and a way through. The full list stays where it was. Deliberately not cyan — DESIGN.md
- * reserves that for the guard being alive and for the primary action, and this is neither; it takes
- * the colour of its own state, the same language the Security Center rows use.
+ * It is a summary that answers three questions without leaving home: how am I doing (the score and
+ * the meter), where is the weakness (the three severity groups, so a failing *critical* never hides
+ * behind a good overall number), and what do I do next (the failing checks themselves, worst
+ * first). The full list and the fixes stay in the Security Center — this is the part worth seeing
+ * unprompted.
+ *
+ * Deliberately not cyan. DESIGN.md reserves that for the guard being alive and for the primary
+ * action, and this is neither, so it takes the colour of its own state — the same language the
+ * Security Center rows already use, so the two screens agree.
  */
 @Composable
 private fun SecurityPostureCard(
@@ -804,7 +837,7 @@ private fun SecurityPostureCard(
     scanner: com.guardia.app.ui.screens.settings.ScannerViewModel = hiltViewModel(),
 ) {
     val c = Guardia.colors
-    // The checks read system settings the user can change while Guardia is backgrounded (screen
+    // These checks read system settings the user can change while Guardia is backgrounded (screen
     // lock, USB debugging, patch level), so a cached answer goes stale the moment they leave.
     androidx.lifecycle.compose.LifecycleResumeEffect(Unit) {
         scanner.scan()
@@ -815,35 +848,29 @@ private fun SecurityPostureCard(
     if (checks.isEmpty()) return
 
     val failed = checks.filter { !it.passed }
-    val critical = failed.count { it.severity == com.guardia.app.ui.screens.settings.Severity.CRITICAL }
+    val criticalFailed = failed.count { it.severity == Severity.CRITICAL }
     val tone = when {
-        critical > 0 -> c.destructive
+        criticalFailed > 0 -> c.destructive
         failed.isNotEmpty() -> c.warning
         else -> c.success
     }
-    // Worst-first, so the line under the score is the thing worth doing next rather than whichever
-    // check happened to be declared first.
-    val headline = when {
-        failed.isEmpty() -> "All ${checks.size} checks passing"
-        critical > 0 -> failed.first { it.severity == com.guardia.app.ui.screens.settings.Severity.CRITICAL }.title
-        else -> failed.first().title
-    }
+    // Worst first: a failed critical is the next thing to do, whatever else is outstanding.
+    val order = listOf(Severity.CRITICAL, Severity.RECOMMENDED, Severity.INFO)
+    val worstFirst = failed.sortedBy { order.indexOf(it.severity) }
     val summary = if (failed.isEmpty()) {
-        "Device security $score out of 100. $headline."
+        "Device security, $score out of 100. All ${checks.size} checks passing."
     } else {
-        "Device security $score out of 100. ${failed.size} of ${checks.size} checks failing. " +
-            "Most important: $headline."
+        "Device security, $score out of 100. ${failed.size} of ${checks.size} checks failing. " +
+            "Most important: ${worstFirst.first().title}."
     }
 
     ShCard(modifier = modifier.fillMaxWidth(), onClick = onOpenSecurity) {
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .padding(Spacing.card)
-                // One node: the parts are a sentence, not four things to swipe through.
-                .semantics(mergeDescendants = true) { contentDescription = summary },
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.fillMaxWidth().padding(Spacing.card)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                // The headline is one sentence; the parts are not four things to swipe through.
+                modifier = Modifier.semantics(mergeDescendants = true) { contentDescription = summary },
+            ) {
                 ShIconBox(
                     icon = if (failed.isEmpty()) Icons.Filled.VerifiedUser else Icons.Filled.GppMaybe,
                     tint = tone,
@@ -857,19 +884,17 @@ private fun SecurityPostureCard(
                         color = c.foreground,
                     )
                     Text(
-                        if (failed.isEmpty()) headline else "$headline${if (failed.size > 1) " +${failed.size - 1} more" else ""}",
+                        if (failed.isEmpty()) {
+                            "All ${checks.size} checks passing"
+                        } else {
+                            "${failed.size} of ${checks.size} need attention"
+                        },
                         style = MaterialTheme.typography.bodySmall,
-                        color = if (failed.isEmpty()) c.mutedForeground else tone,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+                        color = c.mutedForeground,
                     )
                 }
                 Spacer(Modifier.width(Spacing.sm))
-                Text(
-                    "$score",
-                    style = com.guardia.app.ui.theme.DataDisplay,
-                    color = tone,
-                )
+                Text("$score", style = com.guardia.app.ui.theme.DataDisplay, color = tone)
                 Icon(
                     Icons.AutoMirrored.Filled.KeyboardArrowRight,
                     contentDescription = null,
@@ -877,9 +902,155 @@ private fun SecurityPostureCard(
                     modifier = Modifier.size(18.dp),
                 )
             }
+
             Spacer(Modifier.height(Spacing.md))
             ShProgress(progress = score / 100f, height = 6.dp, color = tone)
+
+            // One overall number can hide the shape of the problem: eleven passing checks and one
+            // failed critical still scores well. Splitting by weight is what stops that reading as
+            // "fine".
+            Spacer(Modifier.height(Spacing.lg))
+            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                SeverityPill("Critical", checks, Severity.CRITICAL, c.destructive, Modifier.weight(1f))
+                SeverityPill("Advised", checks, Severity.RECOMMENDED, c.warning, Modifier.weight(1f))
+                SeverityPill("Setup", checks, Severity.INFO, c.info, Modifier.weight(1f))
+            }
+
+            if (worstFirst.isNotEmpty()) {
+                Spacer(Modifier.height(Spacing.lg))
+                ShSeparator()
+                Spacer(Modifier.height(Spacing.md))
+                worstFirst.take(3).forEach { check ->
+                    FailedCheckRow(
+                        title = check.title,
+                        tone = when (check.severity) {
+                            Severity.CRITICAL -> c.destructive
+                            Severity.RECOMMENDED -> c.warning
+                            else -> c.info
+                        },
+                    )
+                }
+                if (worstFirst.size > 3) {
+                    Spacer(Modifier.height(Spacing.sm))
+                    Text(
+                        "+${worstFirst.size - 3} more in Security Center",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = c.mutedForeground,
+                    )
+                }
+            }
         }
+    }
+}
+
+/** Passed-of-total for one severity band. Reads as a fraction, not a verdict. */
+@Composable
+private fun SeverityPill(
+    label: String,
+    checks: List<SecurityCheck>,
+    severity: Severity,
+    tone: Color,
+    modifier: Modifier = Modifier,
+) {
+    val c = Guardia.colors
+    val group = checks.filter { it.severity == severity }
+    if (group.isEmpty()) {
+        Spacer(modifier)
+        return
+    }
+    val passed = group.count { it.passed }
+    val allPassed = passed == group.size
+    // A band that is entirely fine should not shout in its own colour; only a gap earns the hue.
+    val hue = if (allPassed) c.mutedForeground else tone
+    Column(
+        modifier
+            .clip(RoundedCornerShape(Radius.md))
+            .background(if (allPassed) c.muted else tone.copy(alpha = 0.12f))
+            .padding(horizontal = Spacing.sm, vertical = Spacing.sm)
+            .semantics(mergeDescendants = true) {
+                contentDescription = "$label: $passed of ${group.size} passing"
+            },
+    ) {
+        Text(label, style = MaterialTheme.typography.labelSmall, color = c.mutedForeground, maxLines = 1)
+        Spacer(Modifier.height(2.dp))
+        Text("$passed/${group.size}", style = MonoCaption, color = hue, maxLines = 1)
+    }
+}
+
+/**
+ * Two facts about the device that a pass/fail check flattens away.
+ *
+ * "Security patch is recent" tells you nothing once it fails; "412 days" tells you how far behind
+ * the phone actually is, which is the difference between a nag and a reason to act. The app audit
+ * is the other half of the picture — Guardia can guard the screen, but an app that can already see
+ * it and reach the network is a hole the guard does not cover.
+ */
+@Composable
+private fun SecurityFactsRow(
+    onOpenSecurity: () -> Unit,
+    modifier: Modifier = Modifier,
+    scanner: com.guardia.app.ui.screens.settings.ScannerViewModel = hiltViewModel(),
+    hub: com.guardia.app.ui.screens.security.SecurityCenterViewModel = hiltViewModel(),
+) {
+    val c = Guardia.colors
+    androidx.lifecycle.compose.LifecycleResumeEffect(Unit) {
+        hub.refresh()
+        onPauseOrDispose { }
+    }
+    val patchAge by scanner.patchAgeDays.collectAsStateWithLifecycle()
+    val hubState by hub.ui.collectAsStateWithLifecycle()
+
+    Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
+        ShStatCard(
+            label = "Apps that can watch",
+            value = if (hubState.loading) "—" else "${hubState.highRiskApps}",
+            icon = Icons.Filled.PrivacyTip,
+            accent = if (hubState.highRiskApps > 0) c.warning else c.info,
+            caption = when {
+                hubState.loading -> "Scanning installed apps"
+                hubState.highRiskApps == 0 -> "Nothing with screen + network"
+                else -> "Can see the screen and reach the net"
+            },
+            captionColor = if (hubState.highRiskApps > 0) c.warning else null,
+            modifier = Modifier.weight(1f),
+            onClick = onOpenSecurity,
+        )
+        ShStatCard(
+            label = "Security patch",
+            value = patchAge?.let { "${it}d" } ?: "—",
+            icon = Icons.Filled.SystemUpdate,
+            // Android's own guidance is a patch within the last few months; past that the device is
+            // carrying known, published holes that no app can close for it.
+            accent = when {
+                patchAge == null -> c.mutedForeground
+                patchAge!! > 180 -> c.destructive
+                patchAge!! > 120 -> c.warning
+                else -> c.success
+            },
+            caption = patchAge?.let { "Behind by $it days" } ?: "Not reported by this device",
+            modifier = Modifier.weight(1f),
+            onClick = onOpenSecurity,
+        )
+    }
+}
+
+/** One outstanding check, as a line you can read at a glance rather than a card. */
+@Composable
+private fun FailedCheckRow(title: String, tone: Color) {
+    val c = Guardia.colors
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(6.dp).clip(CircleShape).background(tone))
+        Spacer(Modifier.width(Spacing.sm))
+        Text(
+            title,
+            style = MaterialTheme.typography.bodySmall,
+            color = c.foreground,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 

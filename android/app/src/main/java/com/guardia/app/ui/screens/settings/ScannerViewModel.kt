@@ -46,6 +46,14 @@ class ScannerViewModel @Inject constructor(
     private val _score = MutableStateFlow(0)
     val score: StateFlow<Int> = _score.asStateFlow()
 
+    /**
+     * Age of the OS security patch in days, or null when the device does not report a parseable
+     * one. Already computed for the "Security patch is recent" check — exposed because it is a
+     * concrete fact about the device worth showing, where "check failed" is not.
+     */
+    private val _patchAgeDays = MutableStateFlow<Long?>(null)
+    val patchAgeDays: StateFlow<Long?> = _patchAgeDays.asStateFlow()
+
     fun scan() {
         viewModelScope.launch {
             val pinSet = runCatching { prefs.pinIsSet.first() }.getOrDefault(false)
@@ -101,6 +109,7 @@ class ScannerViewModel @Inject constructor(
             }
             _checks.value = results
             _score.value = weightedScore(results)
+            _patchAgeDays.value = patchAgeDays()
         }
     }
 

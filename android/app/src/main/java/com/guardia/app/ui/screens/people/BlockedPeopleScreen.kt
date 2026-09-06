@@ -75,7 +75,7 @@ fun BlockedPeopleScreen(
                     GuardiaCard(modifier = Modifier.fillMaxWidth()) {
                         Column {
                             blocked.forEachIndexed { index, person ->
-                                PersonRow(person, blocked = true, onOpenPerson = onOpenPerson) { viewModel.remove(person.id) }
+                                PersonRow(person, blocked = true, onOpenPerson = onOpenPerson)
                                 if (index < blocked.lastIndex) {
                                     HorizontalDivider(
                                         color = MaterialTheme.colorScheme.outlineVariant,

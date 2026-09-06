@@ -404,9 +404,11 @@ class GuardService : LifecycleService() {
                 // A low-light re-check can request an immediate capture (just after we brighten the
                 // screen) instead of waiting for the next scheduled interval.
                 val forced = forceCaptureAt in 1..android.os.SystemClock.elapsedRealtime()
-                // Yield the front camera while a per-app check is verifying so the two don't fight
-                // over the single process-wide CameraX provider.
-                if (!capturing.get() && !appTriggerManager.checkInProgress &&
+                // Yield the front camera while a per-app check is verifying, or while a screen in
+                // front of the user is using it (enrollment), so nothing fights over the single
+                // process-wide CameraX provider. A held lease skips the check rather than delaying
+                // it: the owner is demonstrably at the phone.
+                if (!capturing.get() && !appTriggerManager.checkInProgress && !CameraLease.isHeld &&
                     (forced || captureGate.shouldCapture())
                 ) {
                     if (forced) forceCaptureAt = 0L

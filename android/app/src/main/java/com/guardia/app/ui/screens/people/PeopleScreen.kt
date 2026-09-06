@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -111,7 +112,7 @@ fun PeopleScreen(
                         GuardiaCard(modifier = Modifier.fillMaxWidth()) {
                             Column {
                                 allowed.forEachIndexed { index, person ->
-                                    PersonRow(person, blocked = false, onOpenPerson = onOpenPerson) { viewModel.remove(person.id) }
+                                    PersonRow(person, blocked = false, onOpenPerson = onOpenPerson)
                                     if (index < allowed.lastIndex) {
                                         HorizontalDivider(
                                             color = MaterialTheme.colorScheme.outlineVariant,
@@ -143,8 +144,11 @@ private fun BlockedLinkCard(count: Int, onClick: () -> Unit) {
             Column(modifier = Modifier.weight(1f)) {
                 Text("Blocked people", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Text(
-                    if (count == 0) "Add look-alikes that must never unlock"
-                    else "$count person(s) - device locks on match",
+                    when (count) {
+                        0 -> "Add look-alikes that must never unlock"
+                        1 -> "1 person · device locks on match"
+                        else -> "$count people · device locks on match"
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -180,39 +184,92 @@ private fun GuestPassCard(onClick: () -> Unit) {
     }
 }
 
+/**
+ * One person in the list.
+ *
+ * Rebuilt on the app's own row language instead of a Material `ListItem` — this was the last list
+ * in Guardia still using one, so it sat visibly apart from every other row in the product.
+ *
+ * The delete button is gone. It was an unconfirmed, single-tap destroy of an enrolled person and
+ * every face sample they own, sitting permanently on the row under the user's thumb; the same
+ * action already exists behind a confirmation on the person's own screen, which is where an
+ * irreversible thing belongs. What replaces it is the chevron every other navigable row in the app
+ * has, so the row now says what it does: it opens.
+ */
 @Composable
-internal fun PersonRow(person: Person, blocked: Boolean, onOpenPerson: (String) -> Unit, onRemove: () -> Unit) {
+internal fun PersonRow(person: Person, blocked: Boolean, onOpenPerson: (String) -> Unit) {
+    val c = Guardia.colors
     val guest = person.expiresAt != null
     val tint = when {
-        blocked -> MaterialTheme.colorScheme.error
-        guest -> MaterialTheme.colorScheme.tertiary
-        else -> Guardia.colors.success
+        blocked -> c.destructive
+        guest -> c.warning
+        else -> c.success
     }
-    ListItem(
-        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-        modifier = Modifier.clickable { onOpenPerson(person.id) },
-        leadingContent = { PersonAvatar(person.name, person.photoPath, ring = tint, size = 44.dp) },
-        headlineContent = { Text(person.name) },
-        supportingContent = {
-            val genderLabel = when (person.gender) {
-                "MALE" -> "Male - "
-                "FEMALE" -> "Female - "
-                else -> ""
+    val samples = if (person.sampleCount == 1) "1 face sample" else "${person.sampleCount} face samples"
+    val gender = when (person.gender) {
+        "MALE" -> "Male"
+        "FEMALE" -> "Female"
+        else -> null
+    }
+    // Middle dots, like every other compound caption in the app; the old " - " read as a stray
+    // hyphen inside the sentence.
+    val caption = when {
+        guest -> "Guest · expires ${android.text.format.DateUtils.getRelativeTimeSpanString(person.expiresAt!!)}"
+        else -> listOfNotNull(gender, samples).joinToString(" · ")
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 64.dp)
+            .clickable(
+                role = androidx.compose.ui.semantics.Role.Button,
+                onClick = { onOpenPerson(person.id) },
+            )
+            .padding(horizontal = Spacing.lg, vertical = Spacing.md),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        PersonAvatar(person.name, person.photoPath, ring = tint, size = 44.dp)
+        Spacer(Modifier.size(Spacing.md))
+        Column(Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    person.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = c.foreground,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                )
+                // The state is a badge rather than a sentence: "locks on match" buried at the end
+                // of a caption is the most important fact about a blocked person.
+                if (blocked || guest) {
+                    Spacer(Modifier.size(Spacing.sm))
+                    com.guardia.app.ui.components.ShBadge(
+                        text = if (blocked) "Blocked" else "Guest",
+                        variant = if (blocked) {
+                            com.guardia.app.ui.components.BadgeVariant.Destructive
+                        } else {
+                            com.guardia.app.ui.components.BadgeVariant.Warning
+                        },
+                    )
+                }
             }
             Text(
-                when {
-                    guest -> "Guest - expires ${android.text.format.DateUtils.getRelativeTimeSpanString(person.expiresAt!!)}"
-                    blocked -> "$genderLabel${person.sampleCount} face sample(s) - locks on match"
-                    else -> "$genderLabel${person.sampleCount} face sample(s) - tap to manage"
-                }
+                caption,
+                style = MaterialTheme.typography.bodySmall,
+                color = c.mutedForeground,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
             )
-        },
-        trailingContent = {
-            IconButton(onClick = onRemove) {
-                Icon(Icons.Filled.Delete, contentDescription = "Remove")
-            }
-        },
-    )
+        }
+        Spacer(Modifier.size(Spacing.sm))
+        Icon(
+            Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = null,
+            tint = c.mutedForeground,
+            modifier = Modifier.size(18.dp),
+        )
+    }
 }
 
 @Composable

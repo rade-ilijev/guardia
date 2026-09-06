@@ -121,8 +121,28 @@ private data class ButtonStyle(
 )
 
 @Composable
-private fun buttonStyleFor(variant: ButtonVariant): ButtonStyle {
+private fun buttonStyleFor(variant: ButtonVariant, enabled: Boolean = true): ButtonStyle {
     val c = Guardia.colors
+    // A disabled button is a *different button*, not a faded one. The old treatment was
+    // .alpha(0.5f) over the whole node, which made the fill itself translucent — a primary button
+    // went half see-through with the aurora drifting underneath, so it read as a rendering glitch
+    // rather than as unavailable, and the label's contrast depended on whatever happened to be
+    // behind it at the time. A solid muted container with muted content is what Material does and
+    // what the eye reads as "off": opaque, quiet, obviously not for pressing.
+    if (!enabled) {
+        return ButtonStyle(
+            container = if (variant == ButtonVariant.Ghost || variant == ButtonVariant.Link) {
+                Color.Transparent
+            } else {
+                c.muted
+            },
+            brush = null,
+            content = c.mutedForeground,
+            border = if (variant == ButtonVariant.Outline) c.border else null,
+            pressedOverlay = Color.Transparent,
+            glow = null,
+        )
+    }
     // On press, shadcn darkens the fill (`hover:bg-primary/90`). The equivalent here is a scrim of
     // the opposite luminance so the same code works in both themes.
     val scrim = if (c.isDark) Color.Black.copy(alpha = 0.20f) else Color.Black.copy(alpha = 0.12f)
@@ -187,7 +207,7 @@ fun ShButton(
     contentPadding: PaddingValues? = null,
     content: @Composable RowScope.() -> Unit,
 ) {
-    val style = buttonStyleFor(variant)
+    val style = buttonStyleFor(variant, enabled)
     val shape = RoundedCornerShape(Radius.md)
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
@@ -229,7 +249,6 @@ fun ShButton(
                 enabled = enabled,
                 onClick = onClick,
             )
-            .alpha(if (enabled) 1f else 0.5f)
             .padding(padding),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,

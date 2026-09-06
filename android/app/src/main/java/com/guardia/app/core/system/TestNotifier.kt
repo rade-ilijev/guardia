@@ -37,7 +37,22 @@ object TestNotifier {
         post(context, VOICE_NOTIF_ID, "Voice safeword", text)
     }
 
+    /**
+     * Posts one result.
+     *
+     * Guarded twice over, like the Wi-Fi check. On Android 13+ notifications need a runtime grant
+     * the user can refuse, and posting without it does nothing at all — so the permission is
+     * checked and the work skipped rather than built and dropped. Anything the platform still
+     * refuses is caught by runCatching. Lint cannot follow either guard, hence the annotation.
+     */
+    @android.annotation.SuppressLint("MissingPermission")
     private fun post(context: Context, id: Int, title: String, text: String) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) !=
+            android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
         ensureChannel(context)
         // The previous 6s auto-timeout meant results flashed into the shade and vanished before
         // anyone noticed ("test mode shows nothing"). Keep the latest result visible for long

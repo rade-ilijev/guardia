@@ -1,5 +1,7 @@
 package com.guardia.app.ui.components
 
+import android.util.LruCache
+
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -21,6 +23,19 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
+ * Decoded launcher icons, kept between compositions.
+ *
+ * Without this every scroll that takes a row off screen and back decodes its icon again: the
+ * `produceState` is keyed on the package, but the whole composable is disposed and recreated, so
+ * the key buys nothing across a scroll. Thirty rows of that is thirty PackageManager lookups and
+ * thirty bitmap decodes for pictures the app already had.
+ *
+ * Small on purpose — 64 icons at 96x96 ARGB is about 2.4MB, which is worth it for a list that is
+ * scrolled constantly, and bounded so a device with a thousand apps cannot grow it without limit.
+ */
+private val iconCache = LruCache<String, ImageBitmap>(64)
+
+/**
  * Another app's launcher icon.
  *
  * Loaded off the main thread and keyed on the package, because `getApplicationIcon` hits the
@@ -38,12 +53,15 @@ fun AppIcon(
     shape: Shape = RoundedCornerShape(10.dp),
 ) {
     val context = LocalContext.current
-    val icon by produceState<ImageBitmap?>(null, packageName) {
+    val icon by produceState<ImageBitmap?>(iconCache[packageName], packageName) {
+        // A cache hit is the initial value, so a scrolled-back row draws its icon on the first
+        // frame instead of flashing the placeholder and settling a moment later.
+        if (value != null) return@produceState
         value = withContext(Dispatchers.IO) {
             runCatching {
                 context.packageManager.getApplicationIcon(packageName).toBitmap(96, 96).asImageBitmap()
             }.getOrNull()
-        }
+        }?.also { iconCache.put(packageName, it) }
     }
     val bitmap = icon
     if (bitmap != null) {

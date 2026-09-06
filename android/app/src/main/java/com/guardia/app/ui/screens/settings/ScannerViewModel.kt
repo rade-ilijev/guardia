@@ -54,7 +54,19 @@ class ScannerViewModel @Inject constructor(
     private val _patchAgeDays = MutableStateFlow<Long?>(null)
     val patchAgeDays: StateFlow<Long?> = _patchAgeDays.asStateFlow()
 
-    fun scan() {
+    /**
+     * Re-runs every check.
+     *
+     * Throttled because the callers are lifecycle hooks: the Security Center and the dashboard
+     * both scan on resume, and the dashboard's card used to do it again every time it scrolled
+     * back into view. None of these readings change second to second — a patch level certainly
+     * does not — so repeating the work is pure cost. [force] is for the pull-to-refresh case where
+     * the user has explicitly asked for a fresh answer.
+     */
+    fun scan(force: Boolean = false) {
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (!force && lastScanAt != 0L && now - lastScanAt < MIN_RESCAN_MS) return
+        lastScanAt = now
         viewModelScope.launch {
             val pinSet = runCatching { prefs.pinIsSet.first() }.getOrDefault(false)
             val guarding = runCatching { prefs.guardingEnabled.first() }.getOrDefault(false)
@@ -197,7 +209,11 @@ class ScannerViewModel @Inject constructor(
         false
     }.getOrDefault(false)
 
+    private var lastScanAt = 0L
+
     private companion object {
         const val MAX_PATCH_AGE_DAYS = 120
+        /** Long enough to cover a scroll or a tab switch, short enough that a fix shows up. */
+        const val MIN_RESCAN_MS = 15_000L
     }
 }

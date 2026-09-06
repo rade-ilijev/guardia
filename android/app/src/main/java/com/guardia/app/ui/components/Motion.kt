@@ -205,7 +205,10 @@ fun Modifier.animateEntrance(
     index: Int = 0,
     enabled: Boolean = true,
     stepMillis: Int = 45,
-    maxSteps: Int = 7,
+    // The dashboard has more than seven cards. Clamping at seven meant everything past the middle
+    // of the page arrived in the same frame, which reads as a jump rather than a cascade; 45ms x
+    // 14 is still only 630ms to the last card, and nothing below the fold is waited on anyway.
+    maxSteps: Int = 14,
     slide: Dp = 14.dp,
 ): Modifier {
     if (!enabled || rememberReducedMotion()) return this

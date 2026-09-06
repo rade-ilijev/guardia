@@ -159,6 +159,17 @@ fun DashboardScreen(
     val lockedApps by viewModel.lockedApps.collectAsStateWithLifecycle()
     val triggerApps by viewModel.triggerApps.collectAsStateWithLifecycle()
 
+    // Owned here rather than inside the cards. A LifecycleResumeEffect inside a LazyColumn item is
+    // disposed when the item scrolls off and re-run when it scrolls back, so the security scan and
+    // the full installed-app audit were firing again on every scroll of the home page. At screen
+    // level they run once per resume, and the view models throttle even that.
+    val scanner: com.guardia.app.ui.screens.settings.ScannerViewModel = hiltViewModel()
+    val securityHub: com.guardia.app.ui.screens.security.SecurityCenterViewModel = hiltViewModel()
+    val securityScore by scanner.score.collectAsStateWithLifecycle()
+    val securityChecks by scanner.checks.collectAsStateWithLifecycle()
+    val patchAgeDays by scanner.patchAgeDays.collectAsStateWithLifecycle()
+    val auditState by securityHub.ui.collectAsStateWithLifecycle()
+
     // NEEDS_ATTENTION is a *running* guard with something missing, so the hero still reads as on
     // and the button still offers to stop it. What changes is the label and colour, which
     // heroCopy/heroIcon already handle, plus the alert below.
@@ -176,7 +187,11 @@ fun DashboardScreen(
     val dashboardLifecycle = LocalLifecycleOwner.current
     DisposableEffect(dashboardLifecycle) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) viewModel.onResumed()
+            if (event == Lifecycle.Event.ON_RESUME) {
+                viewModel.onResumed()
+                scanner.scan()
+                securityHub.refresh()
+            }
         }
         dashboardLifecycle.lifecycle.addObserver(observer)
         onDispose { dashboardLifecycle.lifecycle.removeObserver(observer) }
@@ -299,7 +314,7 @@ fun DashboardScreen(
                     description = "Android turned off Guardia's app-detection permission — updating " +
                         "the app does this. Locked apps will open without asking until you turn it " +
                         "back on.",
-                    modifier = Modifier.animateEntrance(1, arriving()),
+                    modifier = Modifier.animateEntrance(2, arriving()),
                     variant = AlertVariant.Destructive,
                     icon = Icons.Filled.GppBad,
                     action = {
@@ -357,7 +372,7 @@ fun DashboardScreen(
                 }
             }
 
-            item(key = "admin") { Box(Modifier.animateEntrance(4, arriving())) { DeviceAdminCard() } }
+            item(key = "admin") { Box(Modifier.animateEntrance(3, arriving())) { DeviceAdminCard() } }
 
             // Above recent activity on purpose: what is wrong with the device right now outranks
             // what happened yesterday.
@@ -379,14 +394,18 @@ fun DashboardScreen(
             }
             item(key = "security") {
                 SecurityPostureCard(
+                    score = securityScore,
+                    checks = securityChecks,
                     onOpenSecurity = onOpenSecurity,
-                    modifier = Modifier.animateEntrance(4, arriving()),
+                    modifier = Modifier.animateEntrance(5, arriving()),
                 )
             }
             item(key = "security-facts") {
                 SecurityFactsRow(
+                    patchAge = patchAgeDays,
+                    hubState = auditState,
                     onOpenSecurity = onOpenSecurity,
-                    modifier = Modifier.animateEntrance(5, arriving()),
+                    modifier = Modifier.animateEntrance(6, arriving()),
                 )
             }
             item(key = "protected-apps") {
@@ -394,7 +413,7 @@ fun DashboardScreen(
                     lockedApps = lockedApps,
                     triggerApps = triggerApps,
                     onOpenAppLock = onOpenAppLock,
-                    modifier = Modifier.animateEntrance(5, arriving()),
+                    modifier = Modifier.animateEntrance(6, arriving()),
                 )
             }
 
@@ -403,7 +422,7 @@ fun DashboardScreen(
                     Spacer(Modifier.height(Spacing.md))
                     ShSectionLabel(
                         "Recent activity",
-                        Modifier.animateEntrance(5, arriving()),
+                        Modifier.animateEntrance(7, arriving()),
                         trailing = {
                             ShButton(
                                 text = "See all",
@@ -419,19 +438,19 @@ fun DashboardScreen(
                     RecentActivityCard(
                         events = recentEvents,
                         onOpenActivity = onOpenActivity,
-                        modifier = Modifier.animateEntrance(6, arriving()),
+                        modifier = Modifier.animateEntrance(8, arriving()),
                     )
                 }
             }
 
             item(key = "overview-label") {
                 Spacer(Modifier.height(Spacing.md))
-                ShSectionLabel("Overview", Modifier.animateEntrance(7, arriving()))
+                ShSectionLabel("Overview", Modifier.animateEntrance(9, arriving()))
             }
 
             item(key = "stats") {
                 Row(
-                    modifier = Modifier.animateEntrance(8, arriving()),
+                    modifier = Modifier.animateEntrance(10, arriving()),
                     horizontalArrangement = Arrangement.spacedBy(Spacing.md),
                 ) {
                     ShStatCard(
@@ -465,16 +484,16 @@ fun DashboardScreen(
             }
 
             item(key = "battery") {
-                BatteryCard(protectedNow, responsiveness, Modifier.animateEntrance(9, arriving()))
+                BatteryCard(protectedNow, responsiveness, Modifier.animateEntrance(11, arriving()))
             }
     
             item(key = "test-label") {
                 Spacer(Modifier.height(Spacing.md))
-                ShSectionLabel("Diagnostics", Modifier.animateEntrance(9, arriving()))
+                ShSectionLabel("Diagnostics", Modifier.animateEntrance(12, arriving()))
             }
             item(key = "testmode") {
                 TestModeCard(
-                    modifier = Modifier.animateEntrance(10, arriving()),
+                    modifier = Modifier.animateEntrance(13, arriving()),
                     enabled = testMode,
                     onChange = viewModel::setTestMode,
                     onTestLock = {
@@ -846,19 +865,12 @@ private fun FalseLockCard(viewModel: DashboardViewModel, modifier: Modifier = Mo
  */
 @Composable
 private fun SecurityPostureCard(
+    score: Int,
+    checks: List<SecurityCheck>,
     onOpenSecurity: () -> Unit,
     modifier: Modifier = Modifier,
-    scanner: com.guardia.app.ui.screens.settings.ScannerViewModel = hiltViewModel(),
 ) {
     val c = Guardia.colors
-    // These checks read system settings the user can change while Guardia is backgrounded (screen
-    // lock, USB debugging, patch level), so a cached answer goes stale the moment they leave.
-    androidx.lifecycle.compose.LifecycleResumeEffect(Unit) {
-        scanner.scan()
-        onPauseOrDispose { }
-    }
-    val score by scanner.score.collectAsStateWithLifecycle()
-    val checks by scanner.checks.collectAsStateWithLifecycle()
     if (checks.isEmpty()) return
 
     val failed = checks.filter { !it.passed }
@@ -908,7 +920,13 @@ private fun SecurityPostureCard(
                     )
                 }
                 Spacer(Modifier.width(Spacing.sm))
-                Text("$score", style = com.guardia.app.ui.theme.DataDisplay, color = tone)
+                // Every other figure on this page counts up to its value; a security score that
+                // jumped would be the one number that changes without anything drawing the eye.
+                Text(
+                    "${animatedCount(score)}",
+                    style = com.guardia.app.ui.theme.DataDisplay,
+                    color = tone,
+                )
                 Icon(
                     Icons.AutoMirrored.Filled.KeyboardArrowRight,
                     contentDescription = null,
@@ -1106,18 +1124,12 @@ private const val MAX_SHOWN_APP_ICONS = 6
  */
 @Composable
 private fun SecurityFactsRow(
+    patchAge: Long?,
+    hubState: com.guardia.app.ui.screens.security.SecurityCenterViewModel.UiState,
     onOpenSecurity: () -> Unit,
     modifier: Modifier = Modifier,
-    scanner: com.guardia.app.ui.screens.settings.ScannerViewModel = hiltViewModel(),
-    hub: com.guardia.app.ui.screens.security.SecurityCenterViewModel = hiltViewModel(),
 ) {
     val c = Guardia.colors
-    androidx.lifecycle.compose.LifecycleResumeEffect(Unit) {
-        hub.refresh()
-        onPauseOrDispose { }
-    }
-    val patchAge by scanner.patchAgeDays.collectAsStateWithLifecycle()
-    val hubState by hub.ui.collectAsStateWithLifecycle()
 
     Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
         ShStatCard(
@@ -1142,8 +1154,8 @@ private fun SecurityFactsRow(
             // carrying known, published holes that no app can close for it.
             accent = when {
                 patchAge == null -> c.mutedForeground
-                patchAge!! > 180 -> c.destructive
-                patchAge!! > 120 -> c.warning
+                patchAge > 180 -> c.destructive
+                patchAge > 120 -> c.warning
                 else -> c.success
             },
             caption = patchAge?.let { "Behind by $it days" } ?: "Not reported by this device",

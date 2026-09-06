@@ -30,7 +30,21 @@ class SecurityCenterViewModel @Inject constructor(
     private val _ui = MutableStateFlow(UiState())
     val ui: StateFlow<UiState> = _ui.asStateFlow()
 
-    fun refresh() {
+    private var lastRefreshAt = 0L
+
+    /**
+     * Re-audits every installed app.
+     *
+     * This is the expensive one: it walks the full package list and reads each app's granted
+     * permissions, so on a phone with a few hundred apps it is hundreds of PackageManager calls.
+     * It was running on every resume of the *home* screen, including every time the card scrolled
+     * back into view, which is how a summary tile ends up costing more than the screen it
+     * summarises. Installed apps and their permissions change on the order of days.
+     */
+    fun refresh(force: Boolean = false) {
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (!force && lastRefreshAt != 0L && now - lastRefreshAt < MIN_REAUDIT_MS) return
+        lastRefreshAt = now
         _ui.value = _ui.value.copy(loading = true)
         viewModelScope.launch {
             val (highRisk, report) = withContext(Dispatchers.Default) {
@@ -52,5 +66,10 @@ class SecurityCenterViewModel @Inject constructor(
                 integrityIssue = issue,
             )
         }
+    }
+
+    private companion object {
+        /** Installed apps and their permissions change on the order of days, not seconds. */
+        const val MIN_REAUDIT_MS = 120_000L
     }
 }

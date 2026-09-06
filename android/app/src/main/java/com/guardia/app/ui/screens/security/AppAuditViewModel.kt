@@ -8,12 +8,10 @@ import com.guardia.app.core.security.SecurityAuditor
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 @HiltViewModel
 class AppAuditViewModel @Inject constructor(
@@ -34,9 +32,16 @@ class AppAuditViewModel @Inject constructor(
         val apps: List<SecurityAuditor.AppAudit> = emptyList(),
         val showSystem: Boolean = false,
     ) {
-        val visible: List<SecurityAuditor.AppAudit>
-            get() = if (showSystem) apps else apps.filter { !it.isSystem }
-        val highRiskCount: Int get() = visible.count { it.risk == SecurityAuditor.Risk.HIGH }
+        /**
+         * Derived once per state object, not on every read. As getters, these filtered the whole
+         * installed-app list every time anything read them — and the screen reads `visible` four
+         * times in a single composition, with `highRiskCount` filtering it a second time to count.
+         * On a phone with a few hundred apps that is real work on the main thread, repeated for
+         * nothing: the inputs cannot change without a new state object.
+         */
+        val visible: List<SecurityAuditor.AppAudit> =
+            if (showSystem) apps else apps.filter { !it.isSystem }
+        val highRiskCount: Int = visible.count { it.risk == SecurityAuditor.Risk.HIGH }
     }
 
     private val _ui = MutableStateFlow(UiState())
@@ -44,10 +49,11 @@ class AppAuditViewModel @Inject constructor(
 
     init { scan() }
 
-    fun scan() {
+    /** [force] skips the auditor's cache — the pull-to-refresh case. */
+    fun scan(force: Boolean = false) {
         _ui.value = _ui.value.copy(loading = true)
         viewModelScope.launch {
-            val apps = withContext(Dispatchers.Default) { auditor.audit() }
+            val apps = runCatching { auditor.auditCached(force) }.getOrDefault(emptyList())
             _ui.value = _ui.value.copy(loading = false, apps = apps)
         }
     }

@@ -8,6 +8,10 @@ import android.content.pm.PackageManager
 import android.provider.Settings
 import androidx.compose.runtime.Immutable
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -58,9 +62,37 @@ class SecurityAuditor @Inject constructor(
         val score: Int,
     )
 
+    private val auditLock = Mutex()
+    private var cached: List<AppAudit>? = null
+    private var cachedAt = 0L
+
+    /**
+     * [audit] with a short-lived shared cache, off the main thread.
+     *
+     * Two screens ask for this within seconds of each other — the Security Center's high-risk
+     * count and the App Privacy Audit list — and each answer costs a full walk of the installed
+     * packages plus a permission read per app. They were each doing their own. The lock also means
+     * that when both ask at once the second waits for the first's answer instead of starting a
+     * second walk.
+     *
+     * Installed apps and their permissions change on the order of days, so a stale minute is not a
+     * wrong answer; [force] is for the case where the user has explicitly asked for a fresh read.
+     */
+    suspend fun auditCached(force: Boolean = false): List<AppAudit> = auditLock.withLock {
+        val now = android.os.SystemClock.elapsedRealtime()
+        val hit = cached
+        if (!force && hit != null && now - cachedAt < CACHE_TTL_MS) return@withLock hit
+        val fresh = withContext(Dispatchers.Default) { audit() }
+        cached = fresh
+        cachedAt = now
+        fresh
+    }
+
     /**
      * Audits every launchable/user-visible app. Ordered riskiest first. Guardia itself and pure
      * system components with no sensitive capability are excluded so the list stays actionable.
+     *
+     * Blocking and uncached — call [auditCached] unless you specifically want neither.
      */
     fun audit(): List<AppAudit> {
         val pm = context.packageManager
@@ -173,4 +205,9 @@ class SecurityAuditor @Inject constructor(
         val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
         dpm.activeAdmins?.map { it.packageName }?.toSet() ?: emptySet()
     }.getOrDefault(emptySet())
+
+    private companion object {
+        /** How long an audit answer stays good enough to reuse. */
+        const val CACHE_TTL_MS = 5 * 60_000L
+    }
 }

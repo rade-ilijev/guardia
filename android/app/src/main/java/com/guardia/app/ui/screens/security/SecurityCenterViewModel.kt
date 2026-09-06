@@ -48,7 +48,7 @@ class SecurityCenterViewModel @Inject constructor(
         _ui.value = _ui.value.copy(loading = true)
         viewModelScope.launch {
             val (highRisk, report) = withContext(Dispatchers.Default) {
-                val audit = runCatching { auditor.audit() }.getOrDefault(emptyList())
+                val audit = runCatching { auditor.auditCached() }.getOrDefault(emptyList())
                 val high = audit.count { it.risk == SecurityAuditor.Risk.HIGH }
                 high to runCatching { integrity.check() }.getOrNull()
             }

@@ -869,21 +869,26 @@ private fun SecurityPostureCard(
     val c = Guardia.colors
     if (checks.isEmpty()) return
 
-    val failed = checks.filter { !it.passed }
-    val criticalFailed = failed.count { it.severity == Severity.CRITICAL }
+    // Worst first: a failed critical is the next thing to do, whatever else is outstanding.
+    // Filtering and sorting the whole check list on every frame of the entrance animation is
+    // work nobody asked for, so it is keyed to the checks and reused until they actually change.
+    val failed = remember(checks) {
+        val order = listOf(Severity.CRITICAL, Severity.RECOMMENDED, Severity.INFO)
+        checks.filter { !it.passed }.sortedBy { order.indexOf(it.severity) }
+    }
+    val criticalFailed = remember(failed) { failed.count { it.severity == Severity.CRITICAL } }
     val tone = when {
         criticalFailed > 0 -> c.destructive
         failed.isNotEmpty() -> c.warning
         else -> c.success
     }
-    // Worst first: a failed critical is the next thing to do, whatever else is outstanding.
-    val order = listOf(Severity.CRITICAL, Severity.RECOMMENDED, Severity.INFO)
-    val worstFirst = failed.sortedBy { order.indexOf(it.severity) }
-    val summary = if (failed.isEmpty()) {
-        "Device security, $score out of 100. All ${checks.size} checks passing."
-    } else {
-        "Device security, $score out of 100. ${failed.size} of ${checks.size} checks failing. " +
-            "Most important: ${worstFirst.first().title}."
+    val summary = remember(failed, score, checks.size) {
+        if (failed.isEmpty()) {
+            "Device security, $score out of 100. All ${checks.size} checks passing."
+        } else {
+            "Device security, $score out of 100. ${failed.size} of ${checks.size} checks failing. " +
+                "Most important: ${failed.first().title}."
+        }
     }
 
     ShCard(modifier = modifier.fillMaxWidth(), onClick = onOpenSecurity) {
@@ -944,11 +949,11 @@ private fun SecurityPostureCard(
                 SeverityPill("Setup", checks, Severity.INFO, c.info, Modifier.weight(1f))
             }
 
-            if (worstFirst.isNotEmpty()) {
+            if (failed.isNotEmpty()) {
                 Spacer(Modifier.height(Spacing.lg))
                 ShSeparator()
                 Spacer(Modifier.height(Spacing.md))
-                worstFirst.take(3).forEach { check ->
+                failed.take(3).forEach { check ->
                     FailedCheckRow(
                         title = check.title,
                         tone = when (check.severity) {
@@ -958,10 +963,10 @@ private fun SecurityPostureCard(
                         },
                     )
                 }
-                if (worstFirst.size > 3) {
+                if (failed.size > 3) {
                     Spacer(Modifier.height(Spacing.sm))
                     Text(
-                        "+${worstFirst.size - 3} more in Security Center",
+                        "+${failed.size - 3} more in Security Center",
                         style = MaterialTheme.typography.bodySmall,
                         color = c.mutedForeground,
                     )

@@ -16,6 +16,8 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -53,6 +55,27 @@ class ScannerViewModel @Inject constructor(
      */
     private val _patchAgeDays = MutableStateFlow<Long?>(null)
     val patchAgeDays: StateFlow<Long?> = _patchAgeDays.asStateFlow()
+
+    init {
+        // Re-scan when a preference the checks actually read changes.
+        //
+        // Three of these checks are about Guardia's own state, and they were being read once with
+        // .first() inside a scan that only ran on ON_RESUME. Start or stop guarding from the
+        // dashboard and the screen never leaves the foreground, so no resume ever fired and the
+        // security score sat on the previous answer — and the rescan throttle meant even leaving
+        // and coming straight back would not refresh it. Observing the source is the fix; the
+        // resume pass stays for the OS settings that cannot be observed from here (screen lock,
+        // USB debugging, patch level).
+        viewModelScope.launch {
+            combine(
+                prefs.guardingEnabled,
+                prefs.pinIsSet,
+                prefs.lockedApps,
+            ) { guarding, pin, locked -> Triple(guarding, pin, locked.size) }
+                .distinctUntilChanged()
+                .collect { scan(force = true) }
+        }
+    }
 
     /**
      * Re-runs every check.

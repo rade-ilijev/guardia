@@ -8,7 +8,6 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -31,6 +30,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -99,33 +99,38 @@ fun StatusOrb(
         modifier = modifier.size(size).clearAndSetSemantics { },
         contentAlignment = Alignment.Center,
     ) {
-        Canvas(Modifier.fillMaxSize()) {
-            val centre = Offset(this.size.width / 2f, this.size.height / 2f)
-            val stroke = 7.dp.toPx()
-            val radius = this.size.minDimension / 2f - stroke
-            val arcSize = Size(radius * 2, radius * 2)
-            val topLeft = Offset(centre.x - radius, centre.y - radius)
-
-            // Track — the full circle at a constant, quiet weight.
-            drawArc(
-                color = c.muted,
-                startAngle = 0f, sweepAngle = 360f, useCenter = false,
-                topLeft = topLeft, size = arcSize,
-                style = Stroke(width = stroke, cap = StrokeCap.Round),
-            )
-            // Indicator — starts at 12 o'clock, like every gauge the user has ever read. Drawn with
-            // a sweep gradient so the ramp travels *around* the arc rather than across its bounding
-            // box, which is the difference between a coloured ring and a lit one.
-            drawArc(
-                brush = Brush.sweepGradient(
-                    colors = ramp + ramp.first(),
-                    center = centre,
-                ),
-                startAngle = -90f, sweepAngle = 360f * fill, useCenter = false,
-                topLeft = topLeft, size = arcSize,
-                style = Stroke(width = stroke, cap = StrokeCap.Round),
-            )
-        }
+        // drawWithCache, not Canvas: the sweep angle animates, the gradient behind it does not.
+        // Written as a draw lambda, the brush and the list backing it were rebuilt on every frame
+        // of the arm/disarm sweep. Here they are built once per size or colour change, and only
+        // the angle is read at draw time.
+        Spacer(
+            Modifier.fillMaxSize().drawWithCache {
+                // `this.size` explicitly: the composable's own `size: Dp` parameter is in scope.
+                val centre = Offset(this.size.width / 2f, this.size.height / 2f)
+                val strokeWidth = 7.dp.toPx()
+                val radius = this.size.minDimension / 2f - strokeWidth
+                val arcSize = Size(radius * 2, radius * 2)
+                val topLeft = Offset(centre.x - radius, centre.y - radius)
+                val stroke = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+                // The ramp travels *around* the arc rather than across its bounding box, which is
+                // the difference between a coloured ring and a lit one.
+                val indicator = Brush.sweepGradient(colors = ramp + ramp.first(), center = centre)
+                onDrawBehind {
+                    // Track — the full circle at a constant, quiet weight.
+                    drawArc(
+                        color = c.muted,
+                        startAngle = 0f, sweepAngle = 360f, useCenter = false,
+                        topLeft = topLeft, size = arcSize, style = stroke,
+                    )
+                    // Indicator — starts at 12 o'clock, like every gauge the user has ever read.
+                    drawArc(
+                        brush = indicator,
+                        startAngle = -90f, sweepAngle = 360f * fill, useCenter = false,
+                        topLeft = topLeft, size = arcSize, style = stroke,
+                    )
+                }
+            },
+        )
 
         if (active && !reduced) LiveLayer(color = statusColor)
 
@@ -185,41 +190,55 @@ private fun LiveLayer(color: Color) {
         label = "orbBreathe",
     )
 
-    Canvas(Modifier.fillMaxSize()) {
-        val centre = Offset(size.width / 2f, size.height / 2f)
-        val maxR = size.minDimension / 2f - 7.dp.toPx()
-
-        // Interior wash, breathing — stops the disc reading as a hole while the guard is running.
-        drawCircle(color = color.copy(alpha = breathe), radius = maxR * 0.92f, center = centre)
-
-        // Two sonar rings, half a cycle apart.
-        for (offset in listOf(0f, 0.5f)) {
-            val t = (ping + offset) % 1f
-            drawCircle(
-                color = color.copy(alpha = (1f - t) * 0.30f),
-                radius = maxR * (0.34f + t * 0.66f),
+    // This layer redraws every frame for as long as the guard is running, so everything that does
+    // not change frame to frame — the geometry, the stroke styles, the comet's gradient — is built
+    // in the cache block and only the three animated values are read at draw time.
+    Spacer(
+        Modifier.fillMaxSize().drawWithCache {
+            val centre = Offset(size.width / 2f, size.height / 2f)
+            val maxR = size.minDimension / 2f - 7.dp.toPx()
+            val ringStroke = Stroke(width = 1.5.dp.toPx())
+            val cometStroke = Stroke(width = 7.dp.toPx(), cap = StrokeCap.Round)
+            val cometTopLeft = Offset(centre.x - maxR, centre.y - maxR)
+            val cometSize = Size(maxR * 2, maxR * 2)
+            val comet = Brush.sweepGradient(
+                colors = listOf(Color.Transparent, color.copy(alpha = 0.9f)),
                 center = centre,
-                style = Stroke(width = 1.5.dp.toPx()),
             )
-        }
+            onDrawBehind {
+                // Interior wash, breathing — stops the disc reading as a hole while the guard runs.
+                drawCircle(color = color.copy(alpha = breathe), radius = maxR * 0.92f, center = centre)
 
-        // The comet: a short, bright arc riding the ring, fading out behind itself.
-        rotate(degrees = sweep, pivot = centre) {
-            drawArc(
-                brush = Brush.sweepGradient(
-                    colors = listOf(Color.Transparent, color.copy(alpha = 0.9f)),
-                    center = centre,
-                ),
-                startAngle = -110f,
-                sweepAngle = 74f,
-                useCenter = false,
-                topLeft = Offset(centre.x - maxR, centre.y - maxR),
-                size = Size(maxR * 2, maxR * 2),
-                style = Stroke(width = 7.dp.toPx(), cap = StrokeCap.Round),
-            )
-        }
-    }
+                // Two sonar rings, half a cycle apart.
+                for (offset in RING_PHASES) {
+                    val t = (ping + offset) % 1f
+                    drawCircle(
+                        color = color.copy(alpha = (1f - t) * 0.30f),
+                        radius = maxR * (0.34f + t * 0.66f),
+                        center = centre,
+                        style = ringStroke,
+                    )
+                }
+
+                // The comet: a short, bright arc riding the ring, fading out behind itself.
+                rotate(degrees = sweep, pivot = centre) {
+                    drawArc(
+                        brush = comet,
+                        startAngle = -110f,
+                        sweepAngle = 74f,
+                        useCenter = false,
+                        topLeft = cometTopLeft,
+                        size = cometSize,
+                        style = cometStroke,
+                    )
+                }
+            }
+        },
+    )
 }
+
+/** Phase offsets for the two sonar rings — hoisted so the draw pass allocates nothing. */
+private val RING_PHASES = floatArrayOf(0f, 0.5f)
 
 /** Brand mark: the shield sentinel (from [R.drawable.ic_guardia_logo]). */
 @Composable

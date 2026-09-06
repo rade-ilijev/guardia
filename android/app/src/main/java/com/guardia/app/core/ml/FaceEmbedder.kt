@@ -52,6 +52,12 @@ class FaceEmbedder @Inject constructor(
     private var inputBuf: ByteBuffer? = null
     private var batchInputBuf: ByteBuffer? = null
     private var scaled: Bitmap? = null
+
+    // Built alongside [scaled] rather than per call: all three are invariant for a given input
+    // size, and every entry point into this class is @Synchronized.
+    private var scaledCanvas: android.graphics.Canvas? = null
+    private var scaledRect: android.graphics.Rect? = null
+    private val scalePaint = android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG)
     private var output: Array<FloatArray> = emptyArray()
     private var batchOutput: Array<FloatArray> = emptyArray()
 
@@ -202,13 +208,14 @@ class FaceEmbedder @Inject constructor(
             if (s == null || s.width != inputSize || s.height != inputSize || s.isRecycled) {
                 s = Bitmap.createBitmap(inputSize, inputSize, Bitmap.Config.ARGB_8888)
                 scaled = s
+                scaledCanvas = android.graphics.Canvas(s)
+                scaledRect = android.graphics.Rect(0, 0, inputSize, inputSize)
             }
-            android.graphics.Canvas(s).drawBitmap(
-                faceBitmap,
-                null,
-                android.graphics.Rect(0, 0, inputSize, inputSize),
-                android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG),
-            )
+            val canvas = scaledCanvas
+            val rect = scaledRect
+            if (canvas != null && rect != null) {
+                canvas.drawBitmap(faceBitmap, null, rect, scalePaint)
+            }
             s
         }
         src.getPixels(pixelBuf, 0, inputSize, 0, 0, inputSize, inputSize)

@@ -29,11 +29,13 @@ import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import javax.inject.Inject
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Persistent foreground service running the guard loop: a headless CameraX
@@ -144,6 +146,12 @@ class GuardService : LifecycleService() {
         kotlinx.coroutines.channels.Channel<Unit>(kotlinx.coroutines.channels.Channel.CONFLATED)
 
     private fun nudgeScheduler() { schedulerNudge.trySend(Unit) }
+
+    /**
+     * Aborts the capture currently in flight, if any. Set while the camera is open and cleared the
+     * moment it is released, so a preempt that arrives between captures is a no-op.
+     */
+    @Volatile private var abortCapture: (() -> Unit)? = null
 
     /** Requests a forced capture at [at] (elapsedRealtime) and wakes the scheduler so it isn't missed. */
     private fun scheduleForcedCapture(at: Long) {
@@ -367,7 +375,12 @@ class GuardService : LifecycleService() {
         // races a process death, the heartbeat staleness check still bounds the false-positive.)
         kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
             runCatching { prefs.setGuardStoppedCleanly(true) }
+            // The activity log is kept in memory while guarding and only written periodically;
+            // a clean stop is the moment to make sure the last checks are on disk.
+            runCatching { guardActivity.flush() }
         }
+        CameraLease.setGuard(preempt = null, free = null)
+        abortCapture = null
         runCatching { unregisterReceiver(screenReceiver) }
         runCatching { com.guardia.app.core.system.BrightnessOverlay.hide(this) }
         locationZoneManager.stop()
@@ -391,6 +404,17 @@ class GuardService : LifecycleService() {
      * actual check, releasing it immediately afterward so the indicator turns off between checks.
      */
     private fun startCaptureScheduler() {
+        // Anything the user is waiting on — a per-app face check, the enrollment preview — takes
+        // the camera off us mid-capture rather than racing us for it, and we take our postponed
+        // look as soon as it hands the camera back.
+        CameraLease.setGuard(
+            preempt = { abortCapture?.invoke() },
+            free = {
+                scheduleForcedCapture(
+                    android.os.SystemClock.elapsedRealtime() + CAMERA_HANDBACK_DELAY_MS,
+                )
+            },
+        )
         val future = ProcessCameraProvider.getInstance(this)
         future.addListener({ cameraProvider = runCatching { future.get() }.getOrNull() }, cameraMainExecutor)
 
@@ -531,6 +555,7 @@ class GuardService : LifecycleService() {
         val analysis = AnalysisConfig.builder().build()
         val handled = AtomicBoolean(false)
         val frameIndex = AtomicInteger(0)
+        abortCapture = { if (handled.compareAndSet(false, true)) releaseCamera(provider, analysis) }
 
         analysis.setAnalyzer(analysisExecutor) { proxy ->
             val rotation = proxy.imageInfo.rotationDegrees
@@ -566,6 +591,7 @@ class GuardService : LifecycleService() {
     }
 
     private fun releaseCamera(provider: ProcessCameraProvider, analysis: ImageAnalysis) {
+        abortCapture = null
         val onMs = android.os.SystemClock.elapsedRealtime() - captureStartedAt
         if (captureStartedAt > 0L && onMs in 1..(CAPTURE_TIMEOUT_MS + 1000)) {
             guardActivity.recordCheck(onMs)
@@ -607,9 +633,18 @@ class GuardService : LifecycleService() {
             // JPEG all share this bitmap instead of each producing their own rotated copy.
             // (When rotation is 0 this returns the source bitmap itself, so the two may be the
             // same object — the cleanup below accounts for that.)
-            val upright = BitmapUtils.rotate(bitmap, rotation)
+            //
+            // On Dispatchers.Default, deliberately. lifecycleScope is Dispatchers.Main.immediate,
+            // so the whole of a check — a full-frame ARGB rotation, ML Kit detection, an embedding
+            // per enrolled model version, the appearance estimate — was running on the UI thread,
+            // every few seconds, for as long as the guard was on. Everything after the analysis
+            // touches Android objects that want the main thread (overlays, the responder, the
+            // voice controller), so only the compute moves.
+            val upright = withContext(Dispatchers.Default) { BitmapUtils.rotate(bitmap, rotation) }
             try {
-                val analysis = facePipeline.analyze(upright, 0, sensitivity)
+                val analysis = withContext(Dispatchers.Default) {
+                    facePipeline.analyze(upright, 0, sensitivity)
+                }
                 // Dark / no-face fallback: arm the voice safeword so the owner can stop guarding by voice.
                 if (analysis.outcome == FacePipeline.Outcome.NO_FACE) {
                     noFaceStreak++
@@ -654,7 +689,9 @@ class GuardService : LifecycleService() {
                         // to null and still respond. The Responder locks before touching this JPEG
                         // regardless of the "Capture intruders" setting.
                         val jpeg = if (captureIntruders) {
-                            runCatching { BitmapUtils.toJpeg(upright) }.getOrNull()
+                            withContext(Dispatchers.Default) {
+                                runCatching { BitmapUtils.toJpeg(upright) }.getOrNull()
+                            }
                         } else null
                         responder.onIntruder(jpeg, analysis, captureIntruders, testMode)
                     }
@@ -713,7 +750,9 @@ class GuardService : LifecycleService() {
         //    so the face was never lit up and re-validated.
         val darkNoFace = analysis.outcome == FacePipeline.Outcome.NO_FACE &&
             lowLightAction != LOW_LIGHT_IGNORE &&
-            BitmapUtils.averageLuminance(upright) < DARK_FRAME_LUMA
+            // Scales the whole frame down to read its average brightness — off the main thread,
+            // and only reached when there was no face to work with in the first place.
+            withContext(Dispatchers.Default) { BitmapUtils.averageLuminance(upright) } < DARK_FRAME_LUMA
         val lowLight = (analysis.outcome == FacePipeline.Outcome.INCONCLUSIVE &&
             analysis.reason == FacePipeline.InconclusiveReason.LOW_LIGHT) || darkNoFace
         val now = android.os.SystemClock.elapsedRealtime()
@@ -751,7 +790,9 @@ class GuardService : LifecycleService() {
                 endLowLightEpisode(now)
                 if (lowLightAction == LOW_LIGHT_LOCK) {
                     val jpeg = if (captureIntruders) {
-                        runCatching { BitmapUtils.toJpeg(upright) }.getOrNull()
+                        withContext(Dispatchers.Default) {
+                            runCatching { BitmapUtils.toJpeg(upright) }.getOrNull()
+                        }
                     } else null
                     // Responder respects testMode: locks for real, or just previews "would lock".
                     responder.onIntruder(jpeg, analysis, captureIntruders, testMode)
@@ -991,6 +1032,13 @@ class GuardService : LifecycleService() {
 
         /** Delay before the confirming re-check after a suspicious frame (rapid intruder confirm). */
         private const val RAPID_CONFIRM_MS = 550L
+
+        /**
+         * How long to wait after a foreground screen hands the camera back before taking the
+         * check it postponed. Long enough for the check activity to finish tearing its camera
+         * down, short enough that the gap in cover is measured in a second, not a cadence.
+         */
+        private const val CAMERA_HANDBACK_DELAY_MS = 900L
 
         /** Legacy tight poll, kept only while shake-to-check is armed (sensor sets flags async). */
         private const val POLL_INTERVAL_MS = 350L

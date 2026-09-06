@@ -204,11 +204,13 @@ fun Modifier.glow(
 fun Modifier.animateEntrance(
     index: Int = 0,
     enabled: Boolean = true,
-    stepMillis: Int = 45,
+    stepMillis: Int = 30,
     // The dashboard has more than seven cards. Clamping at seven meant everything past the middle
-    // of the page arrived in the same frame, which reads as a jump rather than a cascade; 45ms x
-    // 14 is still only 630ms to the last card, and nothing below the fold is waited on anyway.
-    maxSteps: Int = 14,
+    // of the page arrived in the same frame, which reads as a jump rather than a cascade — but 45ms
+    // x 14 put the last card a full second after the unlock, and a cascade the user is *waiting
+    // out* stops reading as polish. 30ms x 10 keeps the staircase and lands the last card in
+    // 300ms, which is under the threshold where a transition starts to feel like a delay.
+    maxSteps: Int = 10,
     slide: Dp = 14.dp,
 ): Modifier {
     if (!enabled || rememberReducedMotion()) return this
@@ -219,7 +221,7 @@ fun Modifier.animateEntrance(
     }
     val progress by animateFloatAsState(
         targetValue = if (shown) 1f else 0f,
-        animationSpec = tween(durationMillis = 380, easing = EaseOutCubic),
+        animationSpec = tween(durationMillis = 280, easing = EaseOutCubic),
         label = "entrance",
     )
     val slidePx = with(LocalDensity.current) { slide.toPx() }

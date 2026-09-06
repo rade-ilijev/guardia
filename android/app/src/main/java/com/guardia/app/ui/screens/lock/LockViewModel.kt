@@ -25,6 +25,13 @@ class LockViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
 
+    init {
+        // The lock screen exists for exactly one purpose and we know what it will be asked to do.
+        viewModelScope.launch(Dispatchers.Default) {
+            com.guardia.app.core.security.PinManager.warmUp()
+        }
+    }
+
     /** Epoch-ms until which PIN entry is locked out (0 = open). */
     val lockedUntil: StateFlow<Long> =
         prefs.pinLockedUntil.stateIn(viewModelScope, SharingStarted.Eagerly, 0L)

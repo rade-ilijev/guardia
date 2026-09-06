@@ -26,15 +26,45 @@ object CameraLease {
 
     private val holders = AtomicInteger(0)
 
+    @Volatile private var onPreempt: (() -> Unit)? = null
+    @Volatile private var onFree: (() -> Unit)? = null
+
     /** True while any foreground UI is using the camera. */
     val isHeld: Boolean get() = holders.get() > 0
+
+    /**
+     * Registered by the guard service for the lifetime of guarding.
+     *
+     * [preempt] aborts an in-flight background capture and hands the camera back immediately;
+     * [free] is called when the last foreground holder lets go, so the guard can take its
+     * postponed look straight away instead of waiting out a whole cadence interval.
+     */
+    fun setGuard(preempt: (() -> Unit)?, free: (() -> Unit)?) {
+        onPreempt = preempt
+        onFree = free
+    }
 
     fun acquire() {
         holders.incrementAndGet()
     }
 
+    /**
+     * Claims the camera for something the user is waiting on — a per-app face check, the
+     * enrollment preview — and takes it off the guard if the guard is mid-capture.
+     *
+     * The ordering matters and is the whole point: the person standing in front of the phone
+     * cannot wait, and the guard's periodic check can, because it comes round again. Without this
+     * the two simply raced: whichever bound last called `unbindAll()` on the other, so the check
+     * the user was waiting for could open onto a torn-down camera.
+     */
+    fun acquireWithPriority() {
+        val held = holders.incrementAndGet()
+        if (held == 1) runCatching { onPreempt?.invoke() }
+    }
+
     fun release() {
         // Never below zero: a stray release must not make a real hold look free.
-        holders.updateAndGet { if (it > 0) it - 1 else 0 }
+        val left = holders.updateAndGet { if (it > 0) it - 1 else 0 }
+        if (left == 0) runCatching { onFree?.invoke() }
     }
 }

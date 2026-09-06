@@ -24,6 +24,7 @@ class PeopleRepository @Inject constructor(
     @Volatile private var enrolledCache: List<EnrolledFace>? = null
     @Volatile private var negativesCache: List<VersionedEmbedding>? = null
     @Volatile private var prototypeCache: List<PersonPrototype>? = null
+    @Volatile private var versionsCache: Set<Int>? = null
 
     /** An embedding tagged with the pipeline version that produced it. */
     data class VersionedEmbedding(val embedding: FloatArray, val modelVersion: Int)
@@ -32,6 +33,7 @@ class PeopleRepository @Inject constructor(
         enrolledCache = null
         negativesCache = null
         prototypeCache = null
+        versionsCache = null
     }
 
     /**
@@ -198,9 +200,20 @@ class PeopleRepository @Inject constructor(
             .also { negativesCache = it }
     }
 
-    /** Distinct embedding-pipeline versions present across enrolled faces and negatives. */
-    suspend fun usedModelVersions(): Set<Int> =
-        (enrolledFaces().map { it.modelVersion } + negativeEmbeddings().map { it.modelVersion }).toSet()
+    /**
+     * Distinct embedding-pipeline versions present across enrolled faces and negatives.
+     *
+     * Cached with the lists it is derived from. The guard pipeline asks for this on every frame,
+     * and computing it boxed every element of both lists into two new lists, concatenated them,
+     * and built a set — for a value that only changes when someone is enrolled or removed.
+     */
+    suspend fun usedModelVersions(): Set<Int> {
+        versionsCache?.let { return it }
+        val versions = HashSet<Int>()
+        for (f in enrolledFaces()) versions.add(f.modelVersion)
+        for (n in negativeEmbeddings()) versions.add(n.modelVersion)
+        return versions.also { versionsCache = it }
+    }
 
     /** Adds a face to the shared block list bucket so it always triggers a lock. */
     suspend fun addToBlacklist(embedding: FloatArray, photoPath: String?) {

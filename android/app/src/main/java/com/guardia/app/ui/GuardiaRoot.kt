@@ -49,8 +49,11 @@ fun GuardiaRoot(appViewModel: AppViewModel = hiltViewModel()) {
                         // The lock screen snaps in over it instead.
                         EnterTransition.None togetherWith ExitTransition.None
                     } else {
-                        (fadeIn(tween(320)) + scaleIn(tween(360), initialScale = 0.97f)) togetherWith
-                            fadeOut(tween(200)) + scaleOut(tween(240), targetScale = 1.02f)
+                        // Kept short deliberately. This transition sits between the user finishing
+                        // their PIN and the home screen starting its own entrance, so every
+                        // millisecond here is added to a wait they are already sitting through.
+                        (fadeIn(tween(190)) + scaleIn(tween(210), initialScale = 0.97f)) togetherWith
+                            fadeOut(tween(120)) + scaleOut(tween(140), targetScale = 1.02f)
                     }
                 },
                 label = "gate",

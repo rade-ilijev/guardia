@@ -8,6 +8,8 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -39,6 +41,10 @@ class GuardActivityTracker @Inject constructor(
 
     private val batteryCapacityMah: Double by lazy { readBatteryCapacityMah() }
 
+    /** Set when the in-memory buckets have moved on from what is on disk. */
+    private var dirty = false
+    private var flushJob: Job? = null
+
     private val _activity = MutableStateFlow(GuardActivity())
     val activity: StateFlow<GuardActivity> = _activity.asStateFlow()
 
@@ -60,8 +66,38 @@ class GuardActivityTracker @Inject constructor(
                 prune()
             }
             recompute()
-            runCatching { persist() }
+            schedulePersist()
         }
+    }
+
+    /**
+     * Marks the log dirty and lets it reach disk on the next flush window.
+     *
+     * Preferences DataStore rewrites and fsyncs the *entire* file on every edit, and a check
+     * completes every few seconds for as long as the guard is on — so persisting per check meant
+     * a full-file write and an fsync every few seconds, all day, for a battery *estimate*. The
+     * buckets are authoritative in memory; the file catches up at most once a minute, and
+     * immediately when the guard stops and calls [flush].
+     */
+    private fun schedulePersist() {
+        synchronized(lock) {
+            dirty = true
+            if (flushJob?.isActive == true) return
+            flushJob = scope.launch {
+                delay(PERSIST_INTERVAL_MS)
+                flush()
+            }
+        }
+    }
+
+    /** Writes the buckets out now if anything has changed since the last write. */
+    suspend fun flush() {
+        val pending = synchronized(lock) {
+            val d = dirty
+            dirty = false
+            d
+        }
+        if (pending) runCatching { persist() }
     }
 
     private fun recompute() {
@@ -147,6 +183,8 @@ class GuardActivityTracker @Inject constructor(
 
     private companion object {
         const val HOURS = 24
+        /** How long the in-memory log may run ahead of the file. */
+        const val PERSIST_INTERVAL_MS = 60_000L
         /** Approximate combined draw of the front camera + on-device face inference during a check. */
         const val CHECK_POWER_MW = 1100.0
         const val NOMINAL_VOLTAGE = 3.85

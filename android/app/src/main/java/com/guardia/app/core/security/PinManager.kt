@@ -104,6 +104,21 @@ object PinManager {
         return constantTimeEquals(legacySha256(pin, salt), stored)
     }
 
+    /**
+     * Runs one throwaway derivation so the first real [verify] is pure arithmetic.
+     *
+     * The first `SecretKeyFactory.getInstance` in a process loads and initialises the provider,
+     * and that cost was landing on the one call the user is actively waiting for — the moment
+     * they finish typing their PIN. Called when the lock screen appears, off the main thread, so
+     * it has almost always finished by the time the sixth digit lands.
+     */
+    fun warmUp() {
+        runCatching {
+            val spec = PBEKeySpec(charArrayOf('0'), ByteArray(16), 1, KEY_BITS)
+            SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256").generateSecret(spec)
+        }
+    }
+
     private fun pbkdf2(pin: String, salt: String, iterations: Int): String {
         val spec = PBEKeySpec(pin.toCharArray(), decoder.decode(salt), iterations, KEY_BITS)
         val factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")

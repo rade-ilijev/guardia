@@ -55,9 +55,13 @@ class AppTriggerManager @Inject constructor(
     }
 
     fun onForeground(pkg: String) {
-        if (pkg.isBlank() || isTransient(pkg)) return
+        if (pkg.isBlank()) return
         // Same real app still in front (including the app we already passed) -> nothing to do.
+        // Checked before [isTransient], which can end in a Settings.Secure provider query:
+        // TYPE_WINDOW_STATE_CHANGED fires many times a second during ordinary navigation, and
+        // nearly all of those events are this one reference comparison away from being discarded.
         if (pkg == lastRealPackage) return
+        if (isTransient(pkg)) return
         lastRealPackage = pkg
         // Moved to a genuinely different app/home: any previous pass no longer applies.
         passedPackage = null
@@ -86,6 +90,10 @@ class AppTriggerManager @Inject constructor(
     }
 
     private fun launchCheck(pkg: String) {
+        // From here on the front camera belongs to this check. Set before the screenshot round
+        // trip, not after: grabbing a frame is asynchronous, and the guard could otherwise open
+        // the camera in the gap and still be holding it when the check activity wants it.
+        checkInProgress = true
         val provider = screenshotProvider
         // Blur/freeze styles render the actual app content, so capture a frame of it first and
         // launch over it (no opaque cover). Loading style hides the app behind an instant cover.
@@ -104,7 +112,6 @@ class AppTriggerManager @Inject constructor(
     }
 
     private fun startCheckActivity(pkg: String) {
-        checkInProgress = true
         val intent = Intent(context, FaceCheckActivity::class.java).apply {
             addFlags(
                 Intent.FLAG_ACTIVITY_NEW_TASK or

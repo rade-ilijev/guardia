@@ -80,16 +80,25 @@ class AppearanceAnalyzer @Inject constructor() {
         val left = (box.left + inset).coerceIn(0, bmp.width - 2)
         val right = (box.right - inset).coerceIn(left + 1, bmp.width)
 
+        // One bulk read of the band, then sample it in Kotlin. Walking it with getPixel meant a
+        // JNI round-trip per sampled pixel — on the order of a couple of thousand of them, per
+        // unrecognized frame. getPixels crosses that boundary once.
+        val bandW = right - left
+        val rows = bottom - top
+        val pixels = IntArray(bandW * rows)
+        bmp.getPixels(pixels, 0, bandW, left, top, bandW, rows)
+
         var rs = 0.0; var gs = 0.0; var bs = 0.0; var n = 0
-        var y = top
-        while (y < bottom) {
-            var x = left
-            while (x < right) {
-                val c = bmp.getPixel(x, y)
+        var row = 0
+        while (row < rows) {
+            val base = row * bandW
+            var col = 0
+            while (col < bandW) {
+                val c = pixels[base + col]
                 rs += Color.red(c); gs += Color.green(c); bs += Color.blue(c); n++
-                x += 3
+                col += 3
             }
-            y += 3
+            row += 3
         }
         if (n < 12) return HairColor.UNKNOWN to false
         val r = rs / n; val g = gs / n; val b = bs / n
@@ -118,18 +127,21 @@ class AppearanceAnalyzer @Inject constructor() {
         val radius = (face.boundingBox.width() * 0.03f).toInt().coerceIn(2, 8)
         var darkVotes = 0; var lightVotes = 0
         for (p in eyes) {
-            var rs = 0.0; var gs = 0.0; var bs = 0.0; var n = 0
-            var y = (p.y.toInt() - radius).coerceAtLeast(0)
+            // Same reason as the hair band: one bulk read of the iris square rather than a JNI
+            // call per pixel (up to 289 of them, per eye, per unrecognized frame).
+            val yStart = (p.y.toInt() - radius).coerceAtLeast(0)
             val yEnd = min(p.y.toInt() + radius, bmp.height - 1)
-            while (y <= yEnd) {
-                var x = (p.x.toInt() - radius).coerceAtLeast(0)
-                val xEnd = min(p.x.toInt() + radius, bmp.width - 1)
-                while (x <= xEnd) {
-                    val c = bmp.getPixel(x, y)
-                    rs += Color.red(c); gs += Color.green(c); bs += Color.blue(c); n++
-                    x++
-                }
-                y++
+            val xStart = (p.x.toInt() - radius).coerceAtLeast(0)
+            val xEnd = min(p.x.toInt() + radius, bmp.width - 1)
+            if (yEnd < yStart || xEnd < xStart) continue
+            val w = xEnd - xStart + 1
+            val h = yEnd - yStart + 1
+            val square = IntArray(w * h)
+            bmp.getPixels(square, 0, w, xStart, yStart, w, h)
+
+            var rs = 0.0; var gs = 0.0; var bs = 0.0; var n = 0
+            for (c in square) {
+                rs += Color.red(c); gs += Color.green(c); bs += Color.blue(c); n++
             }
             if (n < 4) continue
             val hsv = FloatArray(3)

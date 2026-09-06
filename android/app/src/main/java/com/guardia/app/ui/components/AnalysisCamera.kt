@@ -36,7 +36,7 @@ fun AnalysisCamera(
         // binding down — this composable calls provider.unbindAll(), so without the lease starting
         // an enrollment would kill an in-flight guard capture and the next scheduled one would
         // steal the preview back mid-pose.
-        com.guardia.app.core.guard.CameraLease.acquire()
+        com.guardia.app.core.guard.CameraLease.acquireWithPriority()
         com.guardia.app.core.system.GuardiaCameraMic.enterCamera()
         onDispose {
             com.guardia.app.core.system.GuardiaCameraMic.exitCamera()

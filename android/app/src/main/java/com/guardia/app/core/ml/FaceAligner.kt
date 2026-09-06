@@ -137,7 +137,7 @@ object FaceAligner {
             postScale(scale, scale)
             postTranslate(outSize / 2f, outSize * EYE_LINE_Y)
         }
-        Canvas(out).drawBitmap(src, matrix, Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG))
+        Canvas(out).drawBitmap(src, matrix, WARP_PAINT)
         return out
     }
 
@@ -176,8 +176,16 @@ object FaceAligner {
         val right = (rect.right + w * BOX_MARGIN).toInt().coerceIn(left + 1, src.width)
         val bottom = (rect.bottom + h * BOX_MARGIN).toInt().coerceIn(top + 1, src.height)
         val cropped = Bitmap.createBitmap(src, left, top, right - left, bottom - top)
-        return Bitmap.createScaledBitmap(cropped, outSize, outSize, true)
+        val out = Bitmap.createScaledBitmap(cropped, outSize, outSize, true)
+        // The intermediate crop is a few hundred KB and was being dropped on the floor on every
+        // frame that took this path. Both factory calls are allowed to hand back their source
+        // unchanged, so only recycle what is genuinely an intermediate.
+        if (out !== cropped && cropped !== src) cropped.recycle()
+        return out
     }
+
+    /** Invariant, and never mutated — a fresh one per warp was pure allocation. */
+    private val WARP_PAINT = Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG)
 
     private const val MIN_EYE_DISTANCE = 8f
     private const val MIN_EYE_MOUTH_DISTANCE = 10f

@@ -57,6 +57,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.guardia.app.core.system.DeviceAdminManager
@@ -160,10 +161,14 @@ fun OnboardingScreen(
 
     Column(modifier = Modifier.fillMaxSize().padding(Spacing.lg)) {
         Spacer(Modifier.height(Spacing.md))
+        // Explicit brand colour: the default indicator is a hairline that all but disappears on
+        // the light theme, which is the one thing on the screen telling the user how far in they
+        // are.
         LinearProgressIndicator(
             progress = { (index + 1f) / steps.size },
             modifier = Modifier.fillMaxWidth().height(6.dp).clip(CircleShape),
-            trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+            color = Guardia.colors.brand,
+            trackColor = Guardia.colors.muted,
         )
         Spacer(Modifier.height(Spacing.xs))
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -239,8 +244,23 @@ fun OnboardingScreen(
     }
 }
 
+/**
+ * Steps a user can pass without answering.
+ *
+ * Eleven steps is a long walk for someone who just installed a security app, and only two of them
+ * used to be skippable. These four are the ones that cost nothing to miss: the two hardware
+ * permissions can be granted later from the dashboard's own checklist, the protection tuning has
+ * working defaults already applied, and the feature tour is a tour — it is the least urgent screen
+ * in the flow and it sits at step ten, where attention has already gone.
+ *
+ * The steps that stay mandatory are the ones without which the app cannot do its job: the PIN, the
+ * face, and the camera permission.
+ */
 private val Step.optional: Boolean
-    get() = this == Step.APP_DETECTION || this == Step.LOCATIONS
+    get() = this == Step.APP_DETECTION ||
+        this == Step.LOCATIONS ||
+        this == Step.PROTECTION ||
+        this == Step.DISCOVER
 
 @Composable
 private fun StepHeroOrb(icon: ImageVector, title: String, subtitle: String) {
@@ -289,9 +309,18 @@ private fun StepHero(icon: ImageVector, title: String, subtitle: String) {
 
 @Composable
 private fun StepContainer(content: @Composable () -> Unit) {
+    // Centred, not top-aligned. Most of these steps are shorter than the screen, and top-aligning
+    // them left a third of the display empty under the content with the button stranded at the
+    // bottom — the layout read as unfinished rather than spacious. Arrangement.Center inside a
+    // scrollable column centres while the content fits and scrolls the moment it does not, so the
+    // long steps still behave.
     Column(
-        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(top = Spacing.lg),
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(vertical = Spacing.lg),
         horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
     ) { content() }
 }
 
@@ -314,7 +343,9 @@ private fun WelcomeStep(onShowLegal: (Int) -> Unit = {}, onRestore: () -> Unit =
             GuardiaLogo(size = 140.dp)
         }
         Spacer(Modifier.height(Spacing.lg))
-        Text("Welcome to Guardia", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+        // The wordmark, not "Welcome to Guardia" set in the interface font. This is the first
+        // thing anyone sees of the product and the one place the brand should be unmistakable.
+        com.guardia.app.ui.components.GuardiaWordmark(fontSize = 30.sp)
         Spacer(Modifier.height(Spacing.sm))
         Text(
             "On-device AI that locks your phone for anyone but you. Your face and voice never leave this device.",

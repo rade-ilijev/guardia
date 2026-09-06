@@ -15,6 +15,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.Column
+import androidx.compose.ui.unit.TextUnit
+import com.guardia.app.ui.theme.Spacing
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
@@ -241,20 +245,45 @@ fun GuardiaLogo(modifier: Modifier = Modifier, size: Dp = 120.dp) {
 fun GuardiaLockup(
     modifier: Modifier = Modifier,
     markSize: Dp = 36.dp,
+    /** Mark above the wordmark instead of beside it — for a splash rather than a header. */
+    stacked: Boolean = false,
+    wordmarkSize: TextUnit = com.guardia.app.ui.theme.WordmarkStyle.fontSize,
+) {
+    val wordmark: @Composable () -> Unit = { GuardiaWordmark(fontSize = wordmarkSize) }
+    val semantics = modifier.semantics(mergeDescendants = true) { contentDescription = "Guardia" }
+    if (stacked) {
+        Column(modifier = semantics, horizontalAlignment = Alignment.CenterHorizontally) {
+            GuardiaLogo(size = markSize)
+            Spacer(Modifier.height(Spacing.md))
+            wordmark()
+        }
+    } else {
+        Row(modifier = semantics, verticalAlignment = Alignment.CenterVertically) {
+            GuardiaLogo(size = markSize)
+            Spacer(Modifier.width(10.dp))
+            wordmark()
+        }
+    }
+}
+
+/**
+ * "GUARDIA" in the brand face, filled with the brand ramp.
+ *
+ * Drawn from `gradientBrandAction` rather than the decorative `gradientBrand`: a wordmark is still
+ * text, and those are the stops trimmed for contrast — every one of them clears AA on the page
+ * behind it in both themes. Separate from [GuardiaLockup] because the splash screens already show
+ * the mark at 140dp and do not want a second one beside the letters.
+ */
+@Composable
+fun GuardiaWordmark(
+    modifier: Modifier = Modifier,
+    fontSize: TextUnit = com.guardia.app.ui.theme.WordmarkStyle.fontSize,
 ) {
     val c = com.guardia.app.ui.theme.Guardia.colors
-    val ramp = remember(c.gradientBrandAction) {
-        Brush.linearGradient(c.gradientBrandAction)
-    }
-    Row(
-        modifier = modifier.semantics(mergeDescendants = true) { contentDescription = "Guardia" },
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        GuardiaLogo(size = markSize)
-        Spacer(Modifier.width(10.dp))
-        Text(
-            text = "GUARDIA",
-            style = com.guardia.app.ui.theme.WordmarkStyle.copy(brush = ramp),
-        )
-    }
+    val ramp = remember(c.gradientBrandAction) { Brush.linearGradient(c.gradientBrandAction) }
+    Text(
+        text = "GUARDIA",
+        modifier = modifier,
+        style = com.guardia.app.ui.theme.WordmarkStyle.copy(brush = ramp, fontSize = fontSize),
+    )
 }

@@ -111,3 +111,22 @@ val MonoCaption = TextStyle(
     fontSize = 12.sp,
     lineHeight = 16.sp,
 )
+
+/**
+ * The wordmark.
+ *
+ * [SpaceGrotesk] has been declared "for the wordmark" since the type system was written and then
+ * used in exactly one place; the dashboard set the app's own name in the platform UI face, which
+ * is the one string in the app that should never be in it. A wordmark is not a heading.
+ *
+ * Set in caps with positive tracking, which is the opposite of every other heading here — those
+ * are tight, because they are text to be read quickly. This is a mark to be recognised, and it
+ * wants air.
+ */
+val WordmarkStyle = TextStyle(
+    fontFamily = SpaceGrotesk,
+    fontWeight = FontWeight.Bold,
+    fontSize = 22.sp,
+    lineHeight = 26.sp,
+    letterSpacing = 2.2.sp,
+)

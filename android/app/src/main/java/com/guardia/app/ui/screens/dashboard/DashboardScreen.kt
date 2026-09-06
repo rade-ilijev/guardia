@@ -529,18 +529,14 @@ fun DashboardScreen(
  */
 @Composable
 private fun DashboardHeader(onLock: () -> Unit, modifier: Modifier = Modifier) {
-    val c = Guardia.colors
     Row(
         modifier = modifier.fillMaxWidth().padding(bottom = Spacing.sm),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        com.guardia.app.ui.components.GuardiaLogo(size = 28.dp)
-        Spacer(Modifier.width(Spacing.sm))
-        Text(
-            "Guardia",
-            style = MaterialTheme.typography.headlineSmall,
-            color = c.foreground,
-        )
+        // The lockup, not a 28dp icon beside the app's name in the platform UI face. This is the
+        // one string in the app allowed to be pure brand, and the mark is worth more than a
+        // favicon's worth of space on the screen the user opens every day.
+        com.guardia.app.ui.components.GuardiaLockup(markSize = 36.dp)
         Spacer(Modifier.weight(1f))
         GlassIconButton(
             icon = Icons.Filled.Lock,

@@ -15,6 +15,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.Text
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -33,6 +37,8 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.guardia.app.R
@@ -219,4 +225,36 @@ fun GuardiaLogo(modifier: Modifier = Modifier, size: Dp = 120.dp) {
         contentDescription = "Guardia",
         modifier = modifier.size(size),
     )
+}
+
+/**
+ * The full brand lockup: the mark beside the wordmark, the wordmark carrying the brand ramp.
+ *
+ * The gradient is the app's own [com.guardia.app.ui.theme.GuardiaColors.gradientBrandAction] — the
+ * stops trimmed for contrast — rather than the decorative ramp, because a wordmark is still text
+ * and its every stop clears AA on the page behind it (14.3:1 and 6.8:1 in dark, 5.2:1 and 7.2:1 in
+ * light). Brand colour on the one string that is allowed to be pure brand.
+ *
+ * Exposed as one node reading "Guardia": the mark and the letters are the same thing said twice.
+ */
+@Composable
+fun GuardiaLockup(
+    modifier: Modifier = Modifier,
+    markSize: Dp = 36.dp,
+) {
+    val c = com.guardia.app.ui.theme.Guardia.colors
+    val ramp = remember(c.gradientBrandAction) {
+        Brush.linearGradient(c.gradientBrandAction)
+    }
+    Row(
+        modifier = modifier.semantics(mergeDescendants = true) { contentDescription = "Guardia" },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        GuardiaLogo(size = markSize)
+        Spacer(Modifier.width(10.dp))
+        Text(
+            text = "GUARDIA",
+            style = com.guardia.app.ui.theme.WordmarkStyle.copy(brush = ramp),
+        )
+    }
 }
